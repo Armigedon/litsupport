@@ -319,6 +319,7 @@ function buildOpenAlexQuery(input) {
 function openalexSearch(query, excludeIds) {
   /* Returns array of work IDs (up to 16). */
   var url = OPENALEX_BASE + '?search=' + encodeURIComponent(query) +
+    '&filter=is_oa:true' +
     '&per-page=16' +
     '&select=id,doi,title,abstract_inverted_index,authorships,publication_year,primary_location,cited_by_count,open_access,type';
   if (excludeIds && excludeIds.length) {
@@ -403,9 +404,7 @@ function renderCard(article) {
   var findingHtml = article.finding
     ? '<div class="card-finding">' + esc(article.finding) + '</div>'
     : '';
-  var badgeHtml = article.oaPdfUrl
-    ? '<span class="badge badge-free">Free full text</span>'
-    : '<span class="badge badge-abs">Find via library</span>';
+  var badgeHtml = '<span class="badge badge-free">Free full text</span>';
   var clickUrl = article.oaPdfUrl || article.landingUrl;
   return '' +
     '<div class="card" data-id="' + esc(article.id) + '">' +
