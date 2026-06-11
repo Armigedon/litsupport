@@ -341,10 +341,12 @@ function searchWithCascade(state) {
       query: buildQuery(state.conceptBlock, 'question', false, state.excludeIds, true)
     });
   }
-  /* Attempt 3: drop abstract requirement */
+  /* Attempt 3: maximally permissive — drop both stance and abstract.
+     For question mode this is identical to "no-abstract" since there's no stance;
+     for claim mode this is the final fallback when stance filtering is too narrow. */
   attempts.push({
-    label: 'no-abstract',
-    query: buildQuery(state.conceptBlock, state.mode, state.counter, state.excludeIds, false)
+    label: 'bare-concept',
+    query: buildQuery(state.conceptBlock, 'question', false, state.excludeIds, false)
   });
 
   function tryNext(i, lastPmids) {
