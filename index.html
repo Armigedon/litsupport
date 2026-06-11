@@ -3,1016 +3,230 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Find open-access PubMed articles to support, challenge, or reframe a peer comment. Powered by NCBI E-utilities.">
+<meta name="description" content="Find peer-reviewed PubMed evidence for a clinical question or claim. Powered by NCBI E-utilities.">
 <meta name="theme-color" content="#3d1b51">
-<title>LitSupport — PubMed Research Assistant</title>
-<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet">
+<title>LitSupport — PubMed Evidence Lookup</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
-/* ── Ketchum Health palette ──
-   Navy   #3d1b51  primary / header / sidebar
-   Teal   #4B2E83  accent / CTA
-   Warm white #F7F8FA page bg
-   Gold   #FFC72C  angle stance
-   All type sized up for easy reading
-──────────────────────────────── */
 :root{
-  --navy:#3d1b51; --navy-dk:#2d1240; --navy-lt:#4B2E83;
-  --teal:#4B2E83; --teal-dk:#3a226b; --teal-lt:#f0eaf8;
-  --gold:#FFC72C; --gold-bg:#fffbe6; --gold-bd:#ffd966;
-  --bg:#F7F8FA; --panel:#FFFFFF; --panel2:#EFF2F6;
-  --bd:#d8cce4; --bd2:#b09cc0;
-  --text:#1a0e22; --muted:#3d2e52; --faint:#9b86b0;
-  --green:#1A6B3C; --green-bg:#E8F5EE; --green-bd:#7CC49A;
-  --red:#B03030; --red-bg:#FDF0F0; --red-bd:#E9B0B0;
-  --sh:0 2px 10px rgba(61,27,81,.12),0 1px 3px rgba(0,0,0,.05);
-  --sh-lg:0 5px 20px rgba(61,27,81,.16),0 2px 6px rgba(0,0,0,.07);
-  --r:8px; --rlg:12px
+  --navy:#3d1b51; --navy-lt:#4B2E83;
+  --gold:#FFC72C; --cream:#fffbe6;
+  --bg:#fafafa; --card:#fff;
+  --text:#1a0e22; --muted:#666; --faint:#999;
+  --bd:#e0e0e0; --bd-strong:#d0d0d0;
+  --green:#1A6B3C; --green-bg:#E8F5EE;
+  --purple-bg:#f0eaf8;
+  --red:#B03030; --red-bg:#FDF0F0;
+  --ui:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --read:Georgia,"Times New Roman",Cambria,serif;
+  --r:8px;
 }
 
+html,body{height:auto;min-height:100%}
 body{
-  font-family:'Source Sans 3',sans-serif;
+  font-family:var(--ui);
   background:var(--bg);color:var(--text);
-  min-height:100vh;font-size:17px;line-height:1.75
+  font-size:15px;line-height:1.6;
+  padding:2rem 1rem 4rem;
 }
 
-.shell{display:grid;grid-template-columns:310px 1fr;min-height:100vh}
+.shell{max-width:720px;margin:0 auto}
 
-/* ══════════════ SIDEBAR ══════════════ */
-.sidebar{
-  background:var(--navy);color:#fff;
-  display:flex;flex-direction:column;
-  position:sticky;top:0;height:100vh;overflow-y:auto
+/* Hero */
+.brand{font-size:11px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;text-align:center;margin-bottom:2rem}
+.hero{text-align:center;margin-bottom:1.5rem}
+.hero h1{font-family:var(--read);font-size:28px;font-weight:600;color:var(--text);margin-bottom:.4rem}
+.hero p{font-size:14px;color:var(--muted);margin-bottom:1.25rem}
+.input-wrap{margin-bottom:.75rem}
+.input-wrap textarea{
+  width:100%;background:var(--card);border:1.5px solid var(--bd-strong);border-radius:6px;
+  padding:.85rem 1rem;font-family:var(--ui);font-size:14.5px;color:var(--text);
+  min-height:80px;resize:vertical;
 }
-
-/* Logo bar - mimics Ketchum header bar */
-.sb-brand{
-  background:var(--navy-dk);
-  border-bottom:4px solid var(--teal);
-  padding:1.4rem 1.75rem;
-  display:flex;align-items:center;gap:13px
+.input-wrap textarea:focus{outline:none;border-color:var(--navy-lt);box-shadow:0 0 0 3px rgba(75,46,131,.15)}
+.go-btn{
+  background:var(--navy);color:#fff;border:none;border-radius:6px;
+  padding:.7rem 1.6rem;font-family:var(--ui);font-weight:600;font-size:14.5px;
+  cursor:pointer;display:block;margin:0 auto;
 }
-.sb-icon{
-  width:44px;height:44px;background:#fff;border-radius:var(--r);
-  flex-shrink:0;display:flex;align-items:center;justify-content:center
-}
-.sb-name{font-family:'Lora',serif;font-size:20px;font-weight:600;color:#fff;line-height:1.2}
-.sb-sub{font-size:12.5px;color:rgba(255,255,255,.45);margin-top:2px}
+.go-btn:hover:not(:disabled){background:var(--navy-lt)}
+.go-btn:disabled{background:#bbb;cursor:not-allowed}
+.foot{text-align:center;font-size:11px;color:var(--faint);margin-top:2rem}
 
-.sb-scroll{padding:1.5rem 1.75rem;flex:1;display:flex;flex-direction:column;gap:0}
-
-.sb-lbl{
-  font-size:11.5px;font-weight:600;letter-spacing:.1em;
-  text-transform:uppercase;color:rgba(255,255,255,.38);
-  margin-bottom:9px;display:block
-}
-
-/* Stance buttons */
-.stance-list{display:flex;flex-direction:column;gap:7px;margin-bottom:1.5rem}
-.sopt{
-  display:flex;align-items:center;gap:12px;
-  padding:12px 15px;border-radius:var(--r);
-  border:1px solid rgba(255,255,255,.1);
-  cursor:pointer;transition:all .15s;
-  font-family:'Source Sans 3',sans-serif;
-  font-size:15.5px;color:rgba(255,255,255,.55);
-  background:rgba(255,255,255,.04);
-  text-align:left;width:100%
-}
-.sopt:hover{background:rgba(255,255,255,.1);color:rgba(255,255,255,.88);border-color:rgba(255,255,255,.2)}
-.sopt .sdot{width:11px;height:11px;border-radius:50%;border:2px solid currentColor;flex-shrink:0}
-.s-agree{background:rgba(75,46,131,.22);border-color:rgba(75,46,131,.55);color:#ffe680}
-.s-agree .sdot{background:#FFC72C;border-color:#FFC72C}
-.s-disagree{background:rgba(176,48,48,.2);border-color:rgba(176,48,48,.5);color:#F0A0A0}
-.s-disagree .sdot{background:#E07070;border-color:#E07070}
-.s-angle{background:rgba(255,199,44,.2);border-color:rgba(255,199,44,.5);color:#ffe680}
-.s-angle .sdot{background:#FFC72C;border-color:#FFC72C}
-
-/* Angle expand */
-.angle-wrap{max-height:0;overflow:hidden;transition:max-height .3s ease}
-.angle-wrap.open{max-height:300px}
-.angle-sub{
-  font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-  color:rgba(255,255,255,.3);margin:12px 0 7px;display:block
-}
-.angle-ta{
-  width:100%;background:rgba(255,255,255,.07);
-  border:1px solid rgba(255,255,255,.14);border-radius:var(--r);
-  padding:10px 13px;font-family:'Source Sans 3',sans-serif;
-  font-size:14.5px;color:rgba(255,255,255,.85);
-  outline:none;resize:none;min-height:80px;line-height:1.6;
-  transition:border-color .15s
-}
-.angle-ta::placeholder{color:rgba(255,255,255,.22)}
-.angle-ta:focus{border-color:rgba(75,46,131,.7)}
-.angle-hint{font-size:12.5px;color:rgba(255,255,255,.27);margin-top:6px;line-height:1.55}
-
-.sb-rule{height:1px;background:rgba(255,255,255,.1);margin:1.4rem 0}
-
-/* How it works box */
-.how-box{background:rgba(0,0,0,.18);border-radius:var(--r);padding:15px 17px}
-.how-title{
-  font-size:11.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
-  color:rgba(255,255,255,.33);margin-bottom:12px
-}
-.how-steps{display:flex;flex-direction:column;gap:10px}
-.how-step{display:flex;align-items:flex-start;gap:11px;font-size:14px;color:rgba(255,255,255,.5);line-height:1.55}
-.how-n{
-  flex-shrink:0;width:22px;height:22px;border-radius:50%;
-  background:var(--teal);color:#fff;
-  font-size:12px;font-weight:700;
-  display:flex;align-items:center;justify-content:center;margin-top:1px
-}
-
-.sb-foot{
-  padding:1.2rem 1.75rem;
-  border-top:1px solid rgba(255,255,255,.09);
-  font-size:12.5px;color:rgba(255,255,255,.25);line-height:1.6
-}
-.sb-foot a{color:rgba(255,255,255,.42);text-decoration:none}
-.sb-foot a:hover{color:rgba(255,255,255,.7);text-decoration:underline}
-.oa-pill{
-  display:inline-flex;align-items:center;gap:5px;
-  background:rgba(75,46,131,.28);border:1px solid rgba(75,46,131,.55);
-  color:#ffe680;border-radius:999px;
-  padding:3px 11px;font-size:12px;font-weight:600;
-  margin-bottom:10px;letter-spacing:.02em
-}
-
-/* ══════════════ MAIN ══════════════ */
-.main{display:flex;flex-direction:column;min-height:100vh}
-
-/* Top bar - Ketchum style with teal underline */
-.main-hd{
-  background:var(--panel);
-  border-bottom:4px solid var(--teal);
-  padding:1.6rem 2.75rem;
-  box-shadow:0 2px 10px rgba(0,0,0,.06)
-}
-.main-hd h1{
-  font-family:'Lora',serif;
-  font-size:28px;font-weight:600;
-  color:var(--navy);letter-spacing:-.3px;margin-bottom:5px
-}
-.main-hd p{font-size:17px;color:var(--muted);line-height:1.55}
-
-.main-body{padding:2.25rem 2.75rem 5rem;max-width:920px}
-
-/* Input card */
-.icard{
-  background:var(--panel);
-  border:1px solid var(--bd);
-  border-top:3px solid var(--navy);
-  border-radius:var(--rlg);
-  box-shadow:var(--sh);
-  padding:1.6rem 1.85rem;
-  margin-bottom:1.25rem
-}
-.icard-hd{
-  font-size:13.5px;font-weight:600;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--navy);
-  margin-bottom:12px;display:flex;align-items:center;gap:9px
-}
-.icard-hd::before{content:'';display:block;width:3px;height:18px;background:var(--teal);border-radius:2px}
-
-.cmt-area{
-  width:100%;font-family:'Source Sans 3',sans-serif;
-  font-size:16.5px;color:var(--text);
-  background:var(--panel2);border:1px solid var(--bd);
-  border-radius:var(--r);padding:14px 16px;
-  outline:none;resize:vertical;min-height:145px;line-height:1.75;
-  transition:border-color .15s,background .15s,box-shadow .15s
-}
-.cmt-area:focus{border-color:var(--teal);background:#fff;box-shadow:0 0 0 3px rgba(75,46,131,.1)}
-.cmt-area::placeholder{color:var(--faint)}
-
-.run-row{display:flex;align-items:center;gap:14px;margin-top:1.3rem;flex-wrap:wrap}
-
-.btn-search{
-  display:inline-flex;align-items:center;gap:9px;
-  padding:13px 28px;
-  background:var(--teal);color:#fff;
-  border:none;border-radius:var(--r);
-  font-family:'Source Sans 3',sans-serif;
-  font-size:16px;font-weight:600;
-  cursor:pointer;transition:background .15s,transform .1s,box-shadow .15s;
-  white-space:nowrap;
-  box-shadow:0 3px 10px rgba(75,46,131,.38)
-}
-.btn-search:hover:not(:disabled){background:var(--teal-dk);box-shadow:0 5px 14px rgba(75,46,131,.45)}
-.btn-search:active:not(:disabled){transform:scale(.98)}
-.btn-search:disabled{opacity:.32;cursor:not-allowed;box-shadow:none}
-
-.btn-refind{
-  display:inline-flex;align-items:center;gap:8px;
-  padding:12px 22px;
-  background:var(--panel);color:var(--navy);
-  border:1.5px solid var(--bd2);border-radius:var(--r);
-  font-family:'Source Sans 3',sans-serif;
-  font-size:15px;font-weight:500;
-  cursor:pointer;transition:all .15s;white-space:nowrap
-}
-.btn-refind:hover:not(:disabled){background:var(--panel2);border-color:var(--navy)}
-.btn-refind:disabled{opacity:.28;cursor:not-allowed}
-
-.rhint{font-size:15px;color:var(--faint)}
-
-/* Progress */
-.prog{display:none;margin:1.1rem 0 0}
-.prog.show{display:block}
-.prog-track{height:3px;background:var(--bd);border-radius:3px;overflow:hidden;margin-bottom:11px}
-.prog-fill{height:100%;background:var(--teal);border-radius:3px;animation:pslide 1.8s ease-in-out infinite}
-@keyframes pslide{0%{margin-left:0;width:18%}50%{margin-left:42%;width:36%}100%{margin-left:100%;width:0}}
-.prog-steps{display:flex;flex-direction:column;gap:6px}
-.pstep{font-size:15px;color:var(--faint);display:flex;align-items:center;gap:9px}
-.pstep.active{color:var(--muted)}
-.pstep.done{color:var(--green)}
-.pdot{width:7px;height:7px;border-radius:50%;background:var(--bd2);flex-shrink:0;transition:background .2s}
-.pstep.active .pdot{background:var(--teal)}
-.pstep.done .pdot{background:var(--green)}
-
-.err{
-  display:none;background:var(--red-bg);border:1px solid var(--red-bd);
-  border-radius:var(--r);padding:15px 18px;
-  font-size:16px;color:var(--red);line-height:1.65;margin-top:12px
-}
+/* Status / errors */
+.err{background:var(--red-bg);color:var(--red);border:1px solid #e9b0b0;border-radius:6px;padding:.75rem 1rem;margin:1rem 0;font-size:13.5px;display:none}
+.err.show{display:block}
+.spell-notice{font-size:13px;color:var(--muted);margin:1rem 0;padding:.5rem .75rem;background:#f4f1f9;border-radius:4px;display:none}
+.spell-notice.show{display:block}
 
 /* Results */
-.res-sec{display:none}
-.res-sec.show{display:block}
-.divider{height:1px;background:var(--bd);margin:2.25rem 0}
+.results{margin-top:2rem;display:none}
+.results.show{display:block}
+.results-header{font-size:12.5px;color:var(--muted);margin-bottom:1rem}
+.results-header a{color:var(--navy);text-decoration:underline;cursor:pointer}
 
-.res-hd{
-  display:flex;align-items:flex-start;
-  justify-content:space-between;gap:18px;
-  margin-bottom:1.6rem;flex-wrap:wrap
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:1.5rem;margin-bottom:.85rem}
+.card-title{font-size:13.5px;color:var(--navy);font-weight:600;line-height:1.4;text-decoration:none;display:block}
+.card-title:hover{text-decoration:underline}
+.card-byline{font-size:11.5px;color:var(--faint);margin-top:.25rem}
+.card-finding{
+  margin-top:.85rem;padding:.85rem 1rem;background:var(--cream);
+  border-left:3px solid var(--gold);border-radius:0 6px 6px 0;
+  font-family:var(--read);font-size:15.5px;line-height:1.5;color:var(--text);
 }
-.res-meta{flex:1;min-width:220px}
+.card-footer{margin-top:.75rem;display:flex;justify-content:space-between;align-items:center;font-size:11.5px}
+.badge{padding:2px 10px;border-radius:10px;font-weight:600;font-size:10.5px}
+.badge-free{background:var(--green-bg);color:var(--green)}
+.badge-abs{background:var(--purple-bg);color:var(--navy)}
+.swap-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-family:var(--ui);font-size:11.5px;text-decoration:underline}
+.swap-btn:hover{color:var(--navy)}
+.swap-btn:disabled{color:var(--faint);cursor:default;text-decoration:none}
 
-.spill{
-  display:inline-flex;align-items:center;gap:6px;
-  font-size:12px;font-weight:700;
-  padding:4px 13px;border-radius:999px;
-  letter-spacing:.07em;text-transform:uppercase;margin-bottom:11px
+.sparse{margin-top:1.5rem;padding:1rem 1.25rem;background:#f4f1f9;border-radius:6px;font-size:13px;color:var(--muted)}
+
+/* Loading */
+.loading{display:none;text-align:center;color:var(--muted);font-size:13px;margin:2rem 0}
+.loading.show{display:block}
+
+/* Mobile */
+@media (max-width:480px){
+  body{padding:1.25rem .75rem 3rem}
+  .hero h1{font-size:23px}
+  .card{padding:1.25rem}
+  .card-finding{font-size:14.5px}
+  .card-footer{flex-direction:column;align-items:flex-start;gap:.5rem}
 }
-.p-agree{background:var(--green-bg);color:var(--green);border:1.5px solid var(--green-bd)}
-.p-disagree{background:var(--red-bg);color:var(--red);border:1.5px solid var(--red-bd)}
-.p-angle{background:var(--gold-bg);color:var(--gold);border:1.5px solid var(--gold-bd)}
-
-.claim-blk{
-  font-family:'Lora',serif;font-size:18px;font-style:italic;
-  color:var(--navy);border-left:4px solid var(--teal);
-  padding-left:15px;line-height:1.55
-}
-
-/* ── Article cards ── */
-.art-list{display:flex;flex-direction:column;gap:16px}
-
-.acard{
-  background:var(--panel);
-  border:1.5px solid var(--bd);
-  border-radius:var(--rlg);
-  box-shadow:var(--sh);
-  overflow:hidden;
-  transition:border-color .2s,box-shadow .2s,opacity .2s
-}
-.acard:hover{box-shadow:var(--sh-lg);border-color:var(--bd2)}
-.acard.acc{border-color:var(--green-bd);box-shadow:0 0 0 3px rgba(26,107,60,.08),var(--sh)}
-.acard.rej{opacity:.32}
-
-/* Coloured top accent bar */
-.abar{height:5px;background:var(--teal)}
-.acard.acc .abar{background:var(--green)}
-.acard.rej .abar{background:var(--bd2)}
-
-.abody{padding:1.5rem 1.75rem 1.15rem}
-
-.atop{display:flex;align-items:flex-start;gap:13px;margin-bottom:8px}
-.anum{
-  flex-shrink:0;width:28px;height:28px;border-radius:50%;
-  background:var(--navy);color:#fff;
-  font-size:14px;font-weight:700;
-  display:flex;align-items:center;justify-content:center;margin-top:2px
-}
-.atitle{
-  font-family:'Lora',serif;
-  font-size:18px;font-weight:600;
-  line-height:1.4;flex:1;color:var(--navy)
-}
-
-.ameta{
-  font-size:14px;color:var(--faint);
-  margin:6px 0 14px 41px;line-height:1.65
-}
-.ameta-sep{margin:0 7px;opacity:.45}
-
-.oa-tag{
-  display:inline-flex;align-items:center;gap:4px;
-  font-size:12px;font-weight:600;
-  background:var(--teal-lt);color:var(--teal-dk);
-  border:1px solid rgba(75,46,131,.3);
-  border-radius:999px;padding:2px 10px;
-  margin-left:9px;vertical-align:middle;white-space:nowrap
-}
-
-/* Abstract */
-.aabs{
-  font-size:15.5px;color:var(--muted);
-  line-height:1.8;margin:0 0 14px 41px
-}
-
-/* Relevance callout - Ketchum teal left-bar style */
-.arel{
-  font-size:15px;color:var(--navy-lt);
-  border-left:4px solid var(--teal);
-  padding:10px 14px;
-  margin:0 0 6px 41px;
-  background:var(--teal-lt);
-  border-radius:0 var(--r) var(--r) 0;
-  line-height:1.6
-}
-.arel strong{color:var(--teal-dk);font-weight:600}
-
-/* Card footer */
-.afoot{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:11px 1.75rem;
-  border-top:1px solid var(--bd);
-  background:var(--panel2);
-  gap:12px;flex-wrap:wrap
-}
-
-.src-links{display:flex;gap:8px;flex-wrap:wrap}
-.slink{
-  display:inline-flex;align-items:center;gap:5px;
-  font-size:13.5px;font-weight:600;text-decoration:none;
-  padding:7px 14px;border-radius:var(--r);
-  transition:all .13s;white-space:nowrap
-}
-.slink.pm{
-  color:var(--navy);
-  border:1.5px solid var(--bd2);background:var(--panel)
-}
-.slink.pm:hover{background:var(--teal-lt);border-color:var(--teal);color:var(--teal-dk)}
-.slink.pmc{
-  color:var(--teal-dk);
-  border:1.5px solid var(--teal);background:var(--teal-lt)
-}
-.slink.pmc:hover{background:var(--teal);color:#fff}
-.slink.nih{
-  color:var(--muted);
-  border:1.5px solid var(--bd);background:var(--panel2)
-}
-.slink.nih:hover{border-color:var(--bd2);background:var(--panel)}
-
-.vrow{display:flex;align-items:center;gap:8px}
-.vlbl{font-size:14px;color:var(--faint);font-weight:500}
-
-.btn-a,.btn-r{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:8px 16px;border-radius:var(--r);
-  font-family:'Source Sans 3',sans-serif;
-  font-size:14px;font-weight:600;
-  cursor:pointer;border:1.5px solid;transition:all .15s
-}
-.btn-a{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
-.btn-a:hover,.btn-a.on{background:var(--green);border-color:var(--green);color:#fff}
-.btn-r{background:var(--red-bg);border-color:var(--red-bd);color:var(--red)}
-.btn-r:hover,.btn-r.on{background:var(--red);border-color:var(--red);color:#fff}
-
-/* Status bar */
-.sbar{
-  display:none;margin-top:16px;
-  background:var(--panel);border:1.5px solid var(--bd);
-  border-radius:var(--r);padding:13px 18px;
-  align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap
-}
-.sbar.show{display:flex}
-.scounts{display:flex;gap:18px;flex-wrap:wrap}
-.schip{display:inline-flex;align-items:center;gap:7px;font-size:15px;color:var(--muted)}
-.sdot{width:9px;height:9px;border-radius:50%}
-.sd-a{background:var(--green)}.sd-r{background:var(--red)}.sd-p{background:var(--bd2)}
-.snote{font-size:14px;color:var(--faint);font-style:italic}
-
-@media(max-width:880px){
-  .shell{grid-template-columns:1fr}
-  .sidebar{position:relative;height:auto}
-  .main-body{padding:1.5rem 1.25rem 3rem}
-  .main-hd{padding:1.25rem 1.5rem}
-}
-
-
-
-/* ── Welcome banner ── */
-.welcome{
-  background:linear-gradient(135deg,#3d1b51 0%,#4B2E83 100%);
-  color:#fff;padding:1.1rem 2.75rem;
-  display:flex;align-items:center;justify-content:space-between;
-  gap:16px;flex-wrap:wrap;
-  border-bottom:3px solid #FFC72C
-}
-.welcome-text{font-size:14.5px;color:rgba(255,255,255,.8);line-height:1.55}
-.welcome-text strong{color:#FFC72C;font-weight:600}
-.welcome-dismiss{
-  background:transparent;border:1.5px solid rgba(255,255,255,.35);
-  color:rgba(255,255,255,.7);border-radius:6px;
-  padding:5px 14px;font-size:13px;font-family:'Source Sans 3',sans-serif;
-  cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0
-}
-.welcome-dismiss:hover{background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.6)}
-.welcome.hidden{display:none}
-
 </style>
 </head>
 <body>
 
-
-
-<div class="welcome" id="welcome-bar">
-  <div class="welcome-text">
-    👋 <strong>Welcome to LitSupport.</strong>
-    Paste a peer's comment below, choose whether you want to agree, disagree, or explore a different angle,
-    then click <strong>Search PubMed</strong> to get 3–4 open-access articles from NIH to ground your response.
-  </div>
-  <button class="welcome-dismiss" onclick="dismissWelcome()">Got it ✕</button>
-</div>
-
 <div class="shell">
 
-  <!-- ═══════════ SIDEBAR ═══════════ -->
-  <aside class="sidebar">
-    <div class="sb-brand">
-      <div class="sb-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3d1b51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-        </svg>
-      </div>
-      <div>
-        <div class="sb-name">LitSupport</div>
-        <div class="sb-sub">PubMed Research Assistant</div>
-      </div>
+  <div class="brand">LitSupport</div>
+
+  <div class="hero">
+    <h1>What do you want to back up?</h1>
+    <p>Paste a question or a claim. Get peer-reviewed evidence.</p>
+    <div class="input-wrap">
+      <textarea id="q" autofocus placeholder="e.g. Does rivaroxaban reduce stroke vs warfarin in afib?"></textarea>
     </div>
+    <button class="go-btn" id="go" disabled>Find evidence</button>
+  </div>
 
-    <div class="sb-scroll">
-      <span class="sb-lbl">Response Stance</span>
-      <div class="stance-list">
-        <button class="sopt" id="oA" onclick="setStance('agree')">
-          <div class="sdot"></div>Agree with comment
-        </button>
-        <button class="sopt" id="oD" onclick="setStance('disagree')">
-          <div class="sdot"></div>Disagree with comment
-        </button>
-        <button class="sopt" id="oN" onclick="setStance('angle')">
-          <div class="sdot"></div>Different angle
-        </button>
-      </div>
+  <div class="err" id="err"></div>
+  <div class="spell-notice" id="spell"></div>
+  <div class="loading" id="loading">Searching PubMed…</div>
 
-      <div class="angle-wrap" id="aw">
-        <span class="angle-sub">Describe your angle</span>
-        <textarea class="angle-ta" id="ai"
-          placeholder="e.g. paediatric populations, long-term outcomes, cost-effectiveness, prevention focus…"></textarea>
-        <div class="angle-hint">Optional — shapes the PubMed search toward your specific perspective.</div>
-      </div>
+  <div class="results" id="results">
+    <div class="results-header" id="rhead"></div>
+    <div id="cards"></div>
+    <div class="sparse" id="sparse" style="display:none"></div>
+  </div>
 
-      <div class="sb-rule"></div>
+  <div class="foot">Powered by PubMed · NIH NCBI E-utilities</div>
 
-      <div class="how-box">
-        <div class="how-title">How it works</div>
-        <div class="how-steps">
-          <div class="how-step"><div class="how-n">1</div>Extracts clinical terms from your comment</div>
-          <div class="how-step"><div class="how-n">2</div>Queries PubMed via NCBI E-utilities (NIH)</div>
-          <div class="how-step"><div class="how-n">3</div>Filters to open-access articles in PubMed Central with full text &amp; abstract</div>
-          <div class="how-step"><div class="how-n">4</div>Returns 3–4 articles with direct PMC &amp; NIH links</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sb-foot">
-      <div class="oa-pill">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Open Access · Full Text Only
-      </div><br>
-      Data via <a href="https://www.ncbi.nlm.nih.gov/" target="_blank">NCBI / NIH</a> E-utilities.<br>
-      All articles available on <a href="https://www.ncbi.nlm.nih.gov/pmc/" target="_blank">PubMed Central</a>.
-    </div>
-  </aside>
-
-  <!-- ═══════════ MAIN ═══════════ -->
-  <main class="main">
-    <div class="main-hd">
-      <h1>Find Supporting Literature</h1>
-      <p>Paste a peer's comment, choose your stance, and retrieve open-access PubMed articles with full abstracts and direct NIH links.</p>
-    </div>
-
-    <div class="main-body">
-      <div class="icard">
-        <div class="icard-hd">Peer Comment</div>
-        <textarea class="cmt-area" id="ci"
-          placeholder="Paste your peer's comment here…"
-          oninput="chk()"></textarea>
-        <div class="run-row">
-          <button class="btn-search" id="rb" onclick="go(false)" disabled>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            Search PubMed
-          </button>
-          <span class="rhint" id="rh">Select a stance to begin</span>
-        </div>
-      </div>
-
-      <div class="prog" id="pg">
-        <div class="prog-track"><div class="prog-fill"></div></div>
-        <div class="prog-steps">
-          <div class="pstep" id="s1"><div class="pdot"></div><span>Translating comment to MeSH terms via NCBI…</span></div>
-          <div class="pstep" id="s2"><div class="pdot"></div><span>Running precision PubMed search with field tags…</span></div>
-          <div class="pstep" id="s3"><div class="pdot"></div><span>Fetching abstracts &amp; verifying full-text availability…</span></div>
-        </div>
-      </div>
-      <div class="err" id="eb"></div>
-
-      <div class="res-sec" id="rs">
-        <div class="divider"></div>
-        <div class="res-hd">
-          <div class="res-meta">
-            <div id="pill"></div>
-            <div class="claim-blk" id="claim"></div>
-          </div>
-          <button class="btn-refind" id="rfb" onclick="go(true)" disabled>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="1 4 1 10 7 10"/>
-              <path d="M3.51 15a9 9 0 1 0 .49-3.91"/>
-            </svg>
-            Refind sources
-          </button>
-        </div>
-        <div class="art-list" id="al"></div>
-        <div class="sbar" id="sb">
-          <div class="scounts" id="sc"></div>
-          <div class="snote" id="sn"></div>
-        </div>
-      </div>
-    </div>
-  </main>
 </div>
 
 <script>
-var stance=null, arts=[], states={};
+/* ============================================================
+   LitSupport — clinician PubMed lookup
+   Single-file static page. No build, no deps.
+   ============================================================ */
 
-/* ── UI helpers ───────────────────────────────────────── */
-function setStance(s){
-  stance=s;
-  document.getElementById('oA').className='sopt'+(s==='agree'?' s-agree':'');
-  document.getElementById('oD').className='sopt'+(s==='disagree'?' s-disagree':'');
-  document.getElementById('oN').className='sopt'+(s==='angle'?' s-angle':'');
-  document.getElementById('aw').classList.toggle('open',s==='angle');
-  chk();
-}
-function chk(){
-  var ok=document.getElementById('ci').value.trim().length>5&&stance;
-  document.getElementById('rb').disabled=!ok;
-  document.getElementById('rh').textContent=
-    !stance   ?'Select a stance to begin':
-    !ok       ?'Paste a comment to continue':
-               'Ready — click Search PubMed';
-}
-function esc(s){
-  return String(s||'')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function step(n,st){
-  for(var i=1;i<=3;i++)
-    document.getElementById('s'+i).className=
-      'pstep'+(i<n?' done':i===n?' '+st:'');
-}
-function setLoad(on){
-  document.getElementById('pg').classList.toggle('show',on);
-  document.getElementById('rb').disabled=on;
-  if(!on){chk();updateBar();}
-}
-function showErr(msg){
-  var e=document.getElementById('eb');
-  e.textContent=msg;
-  e.style.display='block';
+var BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
+
+/* ────────────────────────────────────────────────────────────
+   PURE FUNCTIONS (testable via #test hash)
+   ──────────────────────────────────────────────────────────── */
+
+function classifyInput(text) {
+  /* placeholder — implemented in Task 2 */
+  return 'claim';
 }
 
-/* ══════════════════════════════════════════════════════════
-   PRECISION QUERY PIPELINE  v2
-   ──────────────────────────────────────────────────────────
-   1. PHRASE PRESERVATION  – known clinical multi-word phrases
-      are quoted so PubMed treats them as a unit.
-   2. NCBI QUERY TRANSLATION  – ESearch returns PubMed's own
-      MeSH-mapped, spell-corrected querytranslation string.
-      We use that as the concept block, not our own splitting.
-   3. FIELD TAGGING [tiab]  – free-text fallback terms are
-      scoped to Title/Abstract only.
-   4. STANCE MODIFIERS  – agree biases toward systematic
-      reviews; disagree surfaces primary studies.
-   5. RECENCY + AUTO-WIDEN  – tries last 10 years first;
-      if <3 results, automatically widens to all time.
-   ══════════════════════════════════════════════════════════ */
-
-var BASE='https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
-
-/* Known multi-word clinical phrases to detect and quote */
-var PHRASES=[
-  'blood pressure','heart failure','myocardial infarction','atrial fibrillation',
-  'type 2 diabetes','type 1 diabetes','diabetes mellitus','insulin resistance',
-  'chronic kidney disease','renal failure','kidney disease',
-  'coronary artery disease','coronary heart disease','cardiovascular disease',
-  'stroke prevention','ischemic stroke','hemorrhagic stroke',
-  'mental health','anxiety disorder','major depression','bipolar disorder',
-  'cognitive impairment','alzheimer disease','parkinson disease',
-  'breast cancer','lung cancer','colorectal cancer','prostate cancer',
-  'immune response','inflammatory response','oxidative stress',
-  'randomized controlled trial','clinical trial','systematic review','meta-analysis',
-  'evidence based','evidence-based','quality of life',
-  'beta blocker','calcium channel blocker','ace inhibitor','statin therapy',
-  'antibiotic resistance','antimicrobial resistance',
-  'body mass index','metabolic syndrome','obesity hypertension',
-  'pain management','chronic pain','neuropathic pain',
-  'blood glucose','glycemic control','hemoglobin a1c',
-  'bone density','osteoporosis fracture','vitamin d deficiency',
-  'sleep apnea','sleep disorder','obstructive sleep',
-  'autoimmune disease','inflammatory bowel','immune system',
-  'physical activity','exercise therapy','resistance training',
-  'maternal mortality','preterm birth','gestational diabetes',
-  'deep vein thrombosis','pulmonary embolism','venous thromboembolism',
-  'multiple sclerosis','rheumatoid arthritis','systemic lupus',
-  'liver disease','non-alcoholic fatty liver','cirrhosis',
-  'thyroid disease','hypothyroidism','hyperthyroidism'
-];
-
-/* Stopwords used only after phrase extraction */
-var STOP='the a an and or but in on at to for of is are was were be been have has had do does did will would could should may might this that these those it its with from by as we our they their you your i my me us he she his her not no so if then than also can just all more most some any there when where which who what how very about up out into over after before between during through however therefore although because since while both each few many such own same other said using based among show shows showed increased decreased significantly suggest suggests versus compared'.split(' ');
-
-function extractPhrases(text){
-  var lower=text.toLowerCase();
-  var marked=lower;
-  var found=[];
-  var sorted=PHRASES.slice().sort(function(a,b){return b.length-a.length;});
-  sorted.forEach(function(ph){
-    if(marked.indexOf(ph)!==-1){
-      found.push('"'+ph+'"');
-      marked=marked.split(ph).join(ph.replace(/\s+/g,'__'));
-    }
-  });
-  return{marked:marked,found:found};
-}
-
-function rawTerms(markedText){
-  return markedText
-    .replace(/[^a-z0-9_\s]/g,' ')
-    .replace(/\s+/g,' ').trim()
-    .split(' ')
-    .filter(function(w){
-      var plain=w.replace(/__/g,' ');
-      return plain.length>3&&STOP.indexOf(plain)===-1&&w.indexOf('__')===-1;
-    })
-    .slice(0,4);
-}
-
-function stanceModifier(s){
-  if(s==='agree')
-    return '("systematic review"[pt] OR "meta-analysis"[pt] OR "review"[pt] OR "clinical trial"[pt])';
-  if(s==='disagree')
-    return '("journal article"[pt] NOT "review"[pt])';
+function extractFinding(efetchXmlDoc, pmid) {
+  /* placeholder — implemented in Task 3 */
   return null;
 }
 
-function ncbiTranslate(rawComment){
-  var url=BASE+'esearch.fcgi?db=pubmed&retmax=0&retmode=json&usehistory=n&term='
-    +encodeURIComponent(rawComment);
-  return fetch(url)
-    .then(function(r){return r.json();})
-    .then(function(d){
-      var tr=(d.esearchresult&&d.esearchresult.querytranslation)||null;
-      if(!tr||tr.length<6||tr.indexOf('[uid]')!==-1) return null;
-      return tr;
-    })
-    .catch(function(){return null;});
+function rerankByEvidence(articles) {
+  /* placeholder — implemented in Task 4 */
+  return articles;
 }
 
-function ncbiSearch(comment,stance,angle,excludeIds,wideDate){
-  var ex=extractPhrases(comment);
-  var terms=rawTerms(ex.marked);
-  var mod=stanceModifier(stance);
-  var not=excludeIds.length
-    ?excludeIds.map(function(id){return ' NOT '+id+'[uid]';}).join(''):'';
+/* ────────────────────────────────────────────────────────────
+   UI HELPERS
+   ──────────────────────────────────────────────────────────── */
 
-  return ncbiTranslate(comment).then(function(translation){
-    var conceptBlock;
-    if(translation){
-      var cleanTr=translation.replace(/\s*AND\s+\d{4}\/\d{2}\/\d{2}\[.*?\]/g,'').trim();
-      /* Supplement with any strong detected phrases */
-      var phraseOnly=ex.found.slice(0,2);
-      conceptBlock=phraseOnly.length>0
-        ?'('+cleanTr+') AND ('+phraseOnly.join(' OR ')+')'
-        :cleanTr;
-    } else {
-      var parts=ex.found.concat(terms.map(function(t){return t+'[tiab]';}));
-      if(angle&&angle.trim()){
-        var axEx=extractPhrases(angle);
-        var axTerms=rawTerms(axEx.marked).slice(0,3);
-        axEx.found.forEach(function(p){parts.push(p);});
-        axTerms.forEach(function(t){parts.push(t+'[tiab]');});
-      }
-      if(!parts.length) parts=comment.split(' ').slice(0,4).map(function(w){return w+'[tiab]';});
-      conceptBlock='('+parts.join(' AND ')+')';
-    }
+function $(id) { return document.getElementById(id); }
 
-    var q=conceptBlock;
-    if(mod) q+=' AND '+mod;
-    q+=' AND "pubmed pmc"[sb] AND hasabstract[text]';
-    if(!wideDate) q+=' AND ("2014/01/01"[pdat]:"3000"[pdat])';
-    q+=not;
-
-    return fetch(BASE+'esearch.fcgi?db=pubmed&retmax=16&retmode=json&sort=relevance&term='+encodeURIComponent(q))
-      .then(function(r){
-        if(!r.ok) throw new Error('PubMed search failed (HTTP '+r.status+'). Check your internet connection.');
-        return r.json();
-      })
-      .then(function(d){
-        var ids=(d.esearchresult&&d.esearchresult.idlist)||[];
-        if(ids.length<3&&!wideDate){
-          return ncbiSearch(comment,stance,angle,excludeIds,true);
-        }
-        d._queryUsed=q;
-        d._translated=!!translation;
-        return d;
-      });
-  });
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function ncbiSummary(ids){
-  if(!ids.length) return Promise.resolve([]);
-  return fetch(BASE+'esummary.fcgi?db=pubmed&retmode=json&id='+ids.join(','))
-    .then(function(r){return r.json();})
-    .then(function(d){
-      var result=d.result||{};
-      var uids=result.uids||ids;
-      return uids.map(function(uid){
-        var r=result[uid]||{};
-        var authors='Unknown authors';
-        if(r.authors&&r.authors.length){
-          var names=r.authors.map(function(a){return a.name;});
-          authors=names.length>3?names.slice(0,3).join(', ')+' et al.':names.join(', ');
-        }
-        var pmcid='';
-        if(r.articleids) r.articleids.forEach(function(a){if(a.idtype==='pmc')pmcid=a.value.replace('PMC','');});
-        return{
-          pmid:String(uid),
-          title:r.title||'Title unavailable',
-          authors:authors,
-          journal:r.fulljournalname||r.source||'',
-          year:(r.pubdate||'').slice(0,4),
-          vol:r.volume||'',issue:r.issue||'',pages:r.pages||'',
-          pmcid:pmcid,
-          abstract:''
-        };
-      });
-    });
+function showErr(msg) {
+  var e = $('err');
+  e.textContent = msg;
+  e.classList.add('show');
 }
 
-function ncbiAbstracts(pmids){
-  if(!pmids.length) return Promise.resolve({});
-  return fetch(BASE+'efetch.fcgi?db=pubmed&rettype=abstract&retmode=xml&id='+pmids.join(','))
-    .then(function(r){return r.text();})
-    .then(function(xml){
-      var parser=new DOMParser();
-      var doc=parser.parseFromString(xml,'text/xml');
-      var map={};
-      doc.querySelectorAll('PubmedArticle').forEach(function(art){
-        var pmidEl=art.querySelector('PMID');
-        if(!pmidEl) return;
-        var pmid=pmidEl.textContent.trim();
-        var secs=art.querySelectorAll('AbstractText');
-        var parts=[];
-        secs.forEach(function(s){
-          var label=s.getAttribute('Label');
-          var text=s.textContent.trim();
-          if(text) parts.push(label?label+': '+text:text);
-        });
-        var abs=parts.join(' ');
-        if(abs.length>720) abs=abs.substring(0,720).replace(/\s\S*$/,'')+'…';
-        map[pmid]=abs;
-      });
-      return map;
-    });
+function clearUi() {
+  $('err').classList.remove('show');
+  $('spell').classList.remove('show');
+  $('results').classList.remove('show');
+  $('sparse').style.display = 'none';
 }
 
-/* ── Main search flow ─────────────────────────────────── */
-function go(isRefind){
-  var comment=document.getElementById('ci').value.trim();
-  var angle=document.getElementById('ai').value.trim();
-  document.getElementById('eb').style.display='none';
-  setLoad(true);
-  if(!isRefind){
-    document.getElementById('rs').classList.remove('show');
-    arts=[];states={};
+/* ────────────────────────────────────────────────────────────
+   INPUT WIRING
+   ──────────────────────────────────────────────────────────── */
+
+$('q').addEventListener('input', function() {
+  $('go').disabled = $('q').value.trim().length < 6;
+});
+
+$('go').addEventListener('click', function() {
+  var q = $('q').value.trim();
+  if (q.length < 6) return;
+  clearUi();
+  $('loading').classList.add('show');
+  /* network pipeline wired in Task 5 */
+  setTimeout(function() {
+    $('loading').classList.remove('show');
+    showErr('Search not wired yet — implemented in Task 5.');
+  }, 200);
+});
+
+/* ────────────────────────────────────────────────────────────
+   TEST HARNESS — runs only when URL ends with #test
+   ──────────────────────────────────────────────────────────── */
+
+function runTests() {
+  var passed = 0, failed = 0;
+  function assert(name, cond) {
+    if (cond) { console.log('PASS ' + name); passed++; }
+    else      { console.error('FAIL ' + name); failed++; }
+  }
+  function eq(name, actual, expected) {
+    assert(name + ' (got: ' + JSON.stringify(actual) + ')', actual === expected);
   }
 
-  var excludeIds=isRefind
-    ?Object.keys(states).filter(function(k){return states[k]==='rejected';})
-    :[];
-  var kept=isRefind
-    ?arts.filter(function(a){return states[a.pmid]==='accepted';})
-    :[];
+  console.log('── LitSupport test suite ──');
 
-  step(1,'active');
+  /* classifyInput — populated in Task 2 */
+  /* extractFinding — populated in Task 3 */
+  /* rerankByEvidence — populated in Task 4 */
 
-  setTimeout(function(){
-    step(2,'active');
-    ncbiSearch(comment,stance,angle,excludeIds,false)
-      .then(function(d){
-        var ids=(d.esearchresult&&d.esearchresult.idlist)||[];
-        var usedQuery=d._queryUsed||'';
-        var wasMeSH=d._translated||false;
-        if(!ids.length) throw new Error(
-          'No open-access, full-text results found. '
-          +'Try rephrasing your comment — be specific about the clinical condition and intervention.');
-        step(3,'active');
-        var fetchIds=ids.slice(0,12);
-        return ncbiSummary(fetchIds).then(function(summaries){
-          return ncbiAbstracts(fetchIds).then(function(absMap){
-            summaries.forEach(function(s){s.abstract=absMap[s.pmid]||'';});
-            return{summaries:summaries,usedQuery:usedQuery,wasMeSH:wasMeSH};
-          });
-        });
-      })
-      .then(function(result){
-        var fetched=result.summaries;
-        var usedQuery=result.usedQuery;
-        var wasMeSH=result.wasMeSH;
-
-        // Hard filter: must have PMC ID (full text) AND a real abstract
-        var valid=fetched.filter(function(a){
-          return a.pmcid&&a.abstract&&a.abstract.length>50;
-        });
-
-        if(valid.length===0) throw new Error(
-          'Could not retrieve full abstracts for this topic. '
-          +'Try a more specific clinical comment.');
-
-        // Relevance labels
-        var relLabel=
-          stance==='agree'   ?'Supports the comment':
-          stance==='disagree'?'Challenges the comment':
-                              'Alternative perspective';
-        var relNote=
-          stance==='agree'
-            ?'This open-access article provides evidence supporting the position expressed in the comment.'
-          :stance==='disagree'
-            ?'This open-access article offers findings that challenge or contradict the claim in the comment.'
-            :'This open-access article approaches the topic from '
-              +(angle&&angle.trim()
-                ?'the perspective of: '+angle.trim().toLowerCase()
-                :'a different angle')
-              +', adding nuance beyond the comment\'s primary claim.';
-
-        valid.forEach(function(a){a.relLabel=relLabel;a.relNote=relNote;});
-
-        if(isRefind){
-          var fresh=valid.filter(function(a){
-            return!kept.find(function(x){return x.pmid===a.pmid;});
-          });
-          arts=kept.concat(fresh).slice(0,4);
-        } else {
-          arts=valid.slice(0,4);
-        }
-        arts.forEach(function(a){if(!states[a.pmid])states[a.pmid]='pending';});
-
-        // Set pill + claim
-        var pm={agree:'p-agree',disagree:'p-disagree',angle:'p-angle'};
-        var lm={agree:'Supporting literature',disagree:'Challenging literature',angle:'Alternative angle'};
-        document.getElementById('pill').innerHTML=
-          '<span class="spill '+pm[stance]+'">'+lm[stance]+'</span>';
-        /* Show the actual PubMed query used so users can audit/trust results */
-        var meshNote=wasMeSH?' (MeSH-mapped)':'';
-        document.getElementById('claim').textContent='PubMed query'+meshNote+': "'+usedQuery.slice(0,120)+(usedQuery.length>120?'…':'')+'"';
-
-        render();
-        document.getElementById('rs').classList.add('show');
-        step(3,'done');
-        setLoad(false);
-      })
-      .catch(function(e){
-        showErr(e.message||
-          'Search failed. Ensure you are running this file from a local web server '
-          +'Please check your internet connection and try again.');
-        setLoad(false);
-      });
-  },350);
+  console.log('── ' + passed + ' passed, ' + failed + ' failed ──');
 }
 
-/* ── Render ───────────────────────────────────────────── */
-function render(){
-  var list=document.getElementById('al');
-  list.innerHTML='';
-  arts.forEach(function(a,i){list.appendChild(makeCard(a,i));});
-  updateBar();
+if (location.hash === '#test') {
+  runTests();
 }
-
-function ico(){
-  return '<svg style="width:13px;height:13px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
-    +'<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>'
-    +'<polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
-}
-
-function makeCard(a,i){
-  var st=states[a.pmid]||'pending';
-  var d=document.createElement('div');
-  d.className='acard'+(st==='accepted'?' acc':st==='rejected'?' rej':'');
-  d.id='c-'+a.pmid;
-
-  // Citation line
-  var meta=esc(a.authors);
-  if(a.journal) meta+='<span class="ameta-sep">·</span><em>'+esc(a.journal)+'</em>';
-  var cite='';
-  if(a.year)  cite+=a.year;
-  if(a.vol)   cite+=';'+a.vol;
-  if(a.issue) cite+='('+a.issue+')';
-  if(a.pages) cite+=':'+a.pages;
-  if(cite)    meta+='<span class="ameta-sep">·</span>'+cite;
-  meta+='<span class="ameta-sep">·</span>PMID&nbsp;'+esc(a.pmid);
-
-  var oaBadge='<span class="oa-tag">'+ico()+' Full Text</span>';
-
-  var absHtml=a.abstract&&a.abstract.length>10
-    ?esc(a.abstract)
-    :'<em style="color:var(--faint)">Abstract unavailable — view on PubMed.</em>';
-
-  // Links
-  var links='<a class="slink pm" href="https://pubmed.ncbi.nlm.nih.gov/'+esc(a.pmid)+'/" target="_blank">'+ico()+'&nbsp;PubMed</a>';
-  if(a.pmcid)
-    links+='<a class="slink pmc" href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC'+esc(a.pmcid)+'/" target="_blank">'+ico()+'&nbsp;PMC Full Text</a>';
-  links+='<a class="slink nih" href="https://www.ncbi.nlm.nih.gov/search/research-articles/?term='+encodeURIComponent(a.title)+'" target="_blank">'+ico()+'&nbsp;NIH Search</a>';
-
-  d.innerHTML=
-    '<div class="abar"></div>'
-    +'<div class="abody">'
-      +'<div class="atop">'
-        +'<div class="anum">'+(i+1)+'</div>'
-        +'<div class="atitle">'+esc(a.title)+oaBadge+'</div>'
-      +'</div>'
-      +'<div class="ameta">'+meta+'</div>'
-      +'<div class="aabs">'+absHtml+'</div>'
-      +'<div class="arel"><strong>'+esc(a.relLabel)+':</strong> '+esc(a.relNote)+'</div>'
-    +'</div>'
-    +'<div class="afoot">'
-      +'<div class="src-links">'+links+'</div>'
-      +'<div class="vrow">'
-        +'<span class="vlbl">Rate this source:</span>'
-        +'<button class="btn-a'+(st==='accepted'?' on':'')+'" onclick="verdict(\''+a.pmid+'\',\'accepted\')">'
-          +(st==='accepted'?'✓ Accepted':'Accept')+'</button>'
-        +'<button class="btn-r'+(st==='rejected'?' on':'')+'" onclick="verdict(\''+a.pmid+'\',\'rejected\')">'
-          +(st==='rejected'?'✕ Rejected':'Reject')+'</button>'
-      +'</div>'
-    +'</div>';
-  return d;
-}
-
-function verdict(pmid,v){
-  states[pmid]=states[pmid]===v?'pending':v;
-  var idx=arts.findIndex(function(a){return a.pmid===pmid;});
-  if(idx!==-1){
-    var old=document.getElementById('c-'+pmid);
-    if(old) old.parentNode.replaceChild(makeCard(arts[idx],idx),old);
-  }
-  updateBar();
-}
-
-function updateBar(){
-  if(!arts.length) return;
-  var acc=arts.filter(function(a){return states[a.pmid]==='accepted';}).length;
-  var rej=arts.filter(function(a){return states[a.pmid]==='rejected';}).length;
-  var pen=arts.length-acc-rej;
-  document.getElementById('sb').classList.add('show');
-  var c='';
-  if(acc) c+='<span class="schip"><span class="sdot sd-a"></span>'+acc+' accepted</span>';
-  if(rej) c+='<span class="schip"><span class="sdot sd-r"></span>'+rej+' rejected</span>';
-  if(pen) c+='<span class="schip"><span class="sdot sd-p"></span>'+pen+' pending</span>';
-  document.getElementById('sc').innerHTML=c;
-  var can=rej>=2;
-  document.getElementById('rfb').disabled=!can;
-  document.getElementById('sn').textContent=can
-    ?'Refind will replace rejected sources and keep accepted ones.'
-    :'Reject at least 2 sources to enable Refind.';
-}
-
-function dismissWelcome(){
-  document.getElementById('welcome-bar').classList.add('hidden');
-  try{localStorage.setItem('litsupport_welcomed','1');}catch(e){}
-}
-(function(){
-  try{if(localStorage.getItem('litsupport_welcomed')==='1')document.getElementById('welcome-bar').classList.add('hidden');}catch(e){}
-})();
 
 </script>
-
-
 </body>
 </html>
