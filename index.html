@@ -792,6 +792,10 @@ document.addEventListener('click', function(ev) {
   } else if (action === 'swap') {
     var pmid = t.getAttribute('data-pmid');
     if (pmid) swapCard(pmid, t);
+  } else if (action === 'toggle-counter') {
+    if (currentState) {
+      runSearch(currentState.input, !currentState.counter, true);
+    }
   }
 });
 
