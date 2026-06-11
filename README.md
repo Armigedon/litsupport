@@ -1,51 +1,44 @@
-# LitSupport — PubMed Research Assistant
+# LitSupport
 
-Find open-access PubMed articles to support, challenge, or reframe a peer's comment. No API key. No server. Works in any browser.
+Find peer-reviewed PubMed evidence to back up a clinical question or a claim. Type, click, read. No login, no install, no data leaves your browser except the search itself.
 
----
+→ Open it: https://armigedon.github.io/litsupport/
 
-## ✅ Option 1 — Use it instantly (recommended)
+## How to use it
 
-After uploading to GitHub Pages (see below), your tool lives at a permanent URL like:
+1. Paste a clinical question (`Does rivaroxaban reduce stroke vs warfarin in afib?`) or a claim (`GLP-1 agonists improve outcomes in heart failure.`).
+2. Click **Find evidence**.
+3. Skim 8 result cards. Each one shows the actual finding pulled from the abstract's conclusion.
+4. Click a card title to open the full PubMed entry in a new tab.
+5. If a card is irrelevant, click **Wrong? Swap →** to replace just that one with the next-best match.
+6. For a claim, the header offers a one-click toggle to flip from supporting evidence to counterevidence.
 
-```
-https://YOUR-USERNAME.github.io/litsupport/
-```
+## Need it on a locked-down work computer?
 
-Open that URL in any browser. Done.
+LitSupport is a webpage, not an installer. Open the URL above in Chrome and you're done.
 
----
+If your network blocks GitHub Pages, save the page once from any unrestricted browser (`Ctrl+S` → save as `litsupport.html`) and move it to your work machine. Double-click the saved file: it opens in Chrome and runs locally. Searches still work as long as the browser has internet.
 
-## 🚀 Deploy to GitHub Pages (free, 2 minutes)
+## How searches work
 
-1. **Create a GitHub account** at [github.com](https://github.com) if you don't have one.
+- Searches **PubMed** via the official [NCBI E-utilities API](https://www.ncbi.nlm.nih.gov/books/NBK25497/) (NIH).
+- ESpell pre-corrects common typos (`ribaroxaban` → `rivaroxaban`).
+- NCBI's own MeSH query-translation is used as the primary concept block.
+- Results are ranked by PubMed relevance, then stable-sorted to put meta-analyses and systematic reviews ahead of RCTs ahead of cohort studies.
+- If a search would return fewer than 5 results, LitSupport automatically widens (drops the stance modifier, then drops the abstract requirement) before giving up.
+- For claims, a default "supporting evidence" stance modifier biases toward reviews and trials; the counterevidence toggle flips it to primary studies excluding reviews.
+- No data leaves your browser except the search query sent to NIH. No analytics. No telemetry. No accounts.
 
-2. **Create a new repository**
-   - Go to [github.com/new](https://github.com/new)
-   - Name it `litsupport`
-   - Set it to **Public**
-   - Click **Create repository**
+## Deploy your own copy
 
-3. **Upload the files**
-   - Click **Add file → Upload files**
-   - Drag both `index.html` and `README.md` into the upload area
-   - Click **Commit changes**
+If you want to host LitSupport at your own GitHub Pages URL:
 
-4. **Enable GitHub Pages**
-   - Go to your repo → **Settings → Pages**
-   - Under *Source*, select **Deploy from a branch**
-   - Branch: `main`, folder: `/ (root)`
-   - Click **Save**
+1. Fork or clone this repo.
+2. In Settings → Pages, set source to "Deploy from a branch", branch `main`, folder `/ (root)`.
+3. Wait ~60 seconds. Open `https://YOUR-USERNAME.github.io/litsupport/`.
 
-5. **Open your live URL**
-   - After ~60 seconds, visit `https://YOUR-USERNAME.github.io/litsupport/`
-   - Bookmark it — it works forever.
+The whole tool is one `index.html` file with inline styles and scripts. No build step. No dependencies. Edit and push.
 
----
+## Tests
 
-## How it works
-
-- Searches **PubMed** via the official [NCBI E-utilities API](https://www.ncbi.nlm.nih.gov/books/NBK25497/) (NIH)
-- Filters for **open-access full-text** articles in PubMed Central only
-- Uses NCBI's own **MeSH query translation** for precision matching
-- No data leaves your browser except the search query sent to NIH
+Open the deployed URL or local file with `#test` appended (`index.html#test`). The inline test harness runs assertions against the three pure functions (`classifyInput`, `extractFinding`, `rerankByEvidence`) and reports pass/fail to the DevTools console. The harness does not run on the normal URL.
