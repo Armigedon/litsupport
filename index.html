@@ -167,10 +167,10 @@ function extractFinding(efetchXmlDoc, pmid) {
   var abstractTexts = target.querySelectorAll('AbstractText');
   if (abstractTexts.length === 0) return null;
 
-  /* Pass 1: prefer CONCLUSIONS */
+  /* Pass 1: prefer CONCLUSIONS (and JAMA "CONCLUSIONS AND RELEVANCE" / Lancet "INTERPRETATION") */
   for (var j = 0; j < abstractTexts.length; j++) {
     var lbl = (abstractTexts[j].getAttribute('Label') || '').toUpperCase();
-    if (lbl === 'CONCLUSIONS' || lbl === 'CONCLUSION') {
+    if (lbl.indexOf('CONCLUSION') !== -1 || lbl === 'INTERPRETATION') {
       var txt = abstractTexts[j].textContent.trim();
       if (txt) return txt;
     }
@@ -322,6 +322,8 @@ function runTests() {
   var unstructured = extractFinding(unstructuredXml, '333');
   assert('extractFinding: unstructured returns last sentence(s) containing the finding',
     unstructured && unstructured.indexOf('Mortality was lower') !== -1);
+  assert('extractFinding: unstructured returns at most last 2 sentences (not full abstract)',
+    unstructured && unstructured.indexOf('cohort study of 1500 adults') === -1);
 
   var emptyXml = xml(
     '<PubmedArticleSet><PubmedArticle><MedlineCitation>' +
@@ -332,6 +334,33 @@ function runTests() {
   eq('extractFinding: returns null when no abstract', extractFinding(emptyXml, '444'), null);
 
   eq('extractFinding: returns null when PMID not in doc', extractFinding(structuredXml, '999'), null);
+
+  var jamaXml = xml(
+    '<PubmedArticleSet><PubmedArticle><MedlineCitation>' +
+      '<PMID>555</PMID>' +
+      '<Article><Abstract>' +
+        '<AbstractText Label="RESULTS">Effect size A.</AbstractText>' +
+        '<AbstractText Label="CONCLUSIONS AND RELEVANCE">JAMA-style conclusion text.</AbstractText>' +
+      '</Abstract></Article>' +
+    '</MedlineCitation></PubmedArticle></PubmedArticleSet>'
+  );
+  eq('extractFinding: matches JAMA "CONCLUSIONS AND RELEVANCE" label',
+     extractFinding(jamaXml, '555'),
+     'JAMA-style conclusion text.');
+
+  var lancetXml = xml(
+    '<PubmedArticleSet><PubmedArticle><MedlineCitation>' +
+      '<PMID>666</PMID>' +
+      '<Article><Abstract>' +
+        '<AbstractText Label="RESULTS">Effect size B.</AbstractText>' +
+        '<AbstractText Label="INTERPRETATION">Lancet-style interpretation text.</AbstractText>' +
+      '</Abstract></Article>' +
+    '</MedlineCitation></PubmedArticle></PubmedArticleSet>'
+  );
+  eq('extractFinding: matches Lancet "INTERPRETATION" label',
+     extractFinding(lancetXml, '666'),
+     'Lancet-style interpretation text.');
+
   /* rerankByEvidence — populated in Task 4 */
 
   console.log('── ' + passed + ' passed, ' + failed + ' failed ──');
