@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Find peer-reviewed PubMed evidence for a clinical question or claim. Powered by NCBI E-utilities.">
+<meta name="description" content="Find peer-reviewed scholarly evidence for a clinical question or claim. Powered by OpenAlex.">
 <meta name="theme-color" content="#3d1b51">
-<title>LitSupport — PubMed Evidence Lookup</title>
+<title>LitSupport — Scholarly Evidence Lookup</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
@@ -118,7 +118,7 @@ body{
 
   <div class="err" id="err"></div>
   <div class="spell-notice" id="spell"></div>
-  <div class="loading" id="loading">Searching PubMed…</div>
+  <div class="loading" id="loading">Searching OpenAlex…</div>
 
   <div class="results" id="results">
     <div class="results-header" id="rhead"></div>
@@ -126,17 +126,16 @@ body{
     <div class="sparse" id="sparse"></div>
   </div>
 
-  <div class="foot">Powered by PubMed · NIH NCBI E-utilities</div>
+  <div class="foot">Powered by OpenAlex</div>
 
 </div>
 
 <script>
 /* ============================================================
-   LitSupport — clinician PubMed lookup
+   LitSupport — scholarly evidence lookup via OpenAlex
    Single-file static page. No build, no deps.
    ============================================================ */
 
-var BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 
 /* ────────────────────────────────────────────────────────────
    PURE FUNCTIONS (testable via #test hash)
@@ -245,14 +244,6 @@ function showErr(msg) {
   e.classList.add('show');
 }
 
-function showSpellNotice(corrected, original) {
-  var html =
-    'Showing results for: <strong>' + esc(corrected) + '</strong>. ' +
-    '<a tabindex="0" role="button" data-action="search-original">Search instead for <em>' + esc(original) + '</em></a>';
-  var el = $('spell');
-  el.innerHTML = html;
-  el.classList.add('show');
-}
 
 function clearUi() {
   $('err').classList.remove('show');
@@ -263,271 +254,148 @@ function clearUi() {
 }
 
 /* ────────────────────────────────────────────────────────────
-   NCBI PIPELINE
+   OPENALEX PIPELINE
    ──────────────────────────────────────────────────────────── */
 
-var STANCE_SUPPORT = '("systematic review"[pt] OR "meta-analysis"[pt] OR "review"[pt] OR "clinical trial"[pt])';
-var STANCE_COUNTER = '("journal article"[pt] NOT "review"[pt])';
+var OPENALEX_BASE = 'https://api.openalex.org/works';
 
-function ncbiSpell(query) {
-  /* Returns the corrected query if meaningfully different from input, else null. */
-  var url = BASE + 'espell.fcgi?db=pubmed&term=' + encodeURIComponent(query);
-  return fetch(url)
-    .then(function(r) {
-      if (!r.ok) return null;
-      return r.text();
-    })
-    .then(function(text) {
-      if (!text) return null;
-      var doc = new DOMParser().parseFromString(text, 'text/xml');
-      var corrected = doc.querySelector('CorrectedQuery');
-      if (!corrected) return null;
-      var c = corrected.textContent.trim();
-      if (!c) return null;
-      if (c.toLowerCase() === query.toLowerCase()) return null;
-      /* Require at least one whole-token change to avoid trivial casing tweaks */
-      var qTokens = query.toLowerCase().split(/\s+/);
-      var cTokens = c.toLowerCase().split(/\s+/);
-      var changed = false;
-      for (var i = 0; i < cTokens.length; i++) {
-        if (qTokens.indexOf(cTokens[i]) === -1) { changed = true; break; }
-      }
-      return changed ? c : null;
-    })
-    .catch(function() { return null; });
+/* Stopwords stripped from the user's input before sending to OpenAlex.
+   These add no signal and dilute relevance ranking. */
+var STOPWORDS = (
+  'a an the of in on at to for and or but if then than as is are was were be been ' +
+  'being have has had do does did will would could should may might can must shall ' +
+  'i you he she it we they me him her us them my your his hers our their this that ' +
+  'these those there here where when why how what which who whose whom about above ' +
+  'below up down over under into out from with without by through during between ' +
+  'among across against very just only also more most some any all each both few ' +
+  'many such own same other another not no nor so too however therefore although ' +
+  'because since while having allow allows allowed allowing accept accepts ' +
+  'accepted accepting using used use'
+).split(/\s+/);
+
+function buildOpenAlexQuery(input) {
+  /* Strip punctuation except hyphens, lowercase, split, drop stopwords,
+     drop tokens < 3 chars. Trailing ? would be interpreted by OpenAlex as a wildcard
+     and is dropped automatically by the punctuation strip. */
+  var tokens = String(input || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\-]/g, ' ')
+    .split(/\s+/)
+    .filter(function(t) { return t.length >= 3 && STOPWORDS.indexOf(t) === -1; });
+  return tokens.join(' ');
 }
 
-function ncbiTranslate(query) {
-  /* Returns the NCBI MeSH-mapped concept block, or null if unusable. */
-  var url = BASE + 'esearch.fcgi?db=pubmed&retmax=0&retmode=json&usehistory=n&term=' + encodeURIComponent(query);
+function openalexSearch(query, excludeIds) {
+  /* Returns array of work IDs (up to 16). */
+  var url = OPENALEX_BASE + '?search=' + encodeURIComponent(query) +
+    '&per-page=16' +
+    '&select=id,doi,title,abstract_inverted_index,authorships,publication_year,primary_location,cited_by_count,open_access,type';
+  if (excludeIds && excludeIds.length) {
+    /* OpenAlex doesn't support NOT directly; filter client-side after fetch */
+  }
   return fetch(url)
     .then(function(r) {
-      if (!r.ok) throw new Error('NCBI translate failed (HTTP ' + r.status + ')');
+      if (!r.ok) throw new Error('OpenAlex search failed (HTTP ' + r.status + ')');
       return r.json();
     })
     .then(function(d) {
-      var tr = d.esearchresult && d.esearchresult.querytranslation;
-      if (!tr || tr.length < 6 || tr.indexOf('[uid]') !== -1) return null;
-      /* Strip any embedded date clauses */
-      return tr.replace(/\s*AND\s+\d{4}\/\d{2}\/\d{2}\[.*?\]/g, '').trim();
-    })
-    .catch(function() { return null; });
-}
-
-function buildQuery(conceptBlock, mode, counter, excludeIds, includeAbstract) {
-  var q = conceptBlock;
-  if (mode === 'claim' && !counter) q += ' AND ' + STANCE_SUPPORT;
-  else if (mode === 'claim' && counter) q += ' AND ' + STANCE_COUNTER;
-  if (includeAbstract) q += ' AND hasabstract[text]';
-  if (excludeIds && excludeIds.length) {
-    excludeIds.forEach(function(id) { q += ' NOT ' + id + '[uid]'; });
-  }
-  return q;
-}
-
-function searchWithCascade(state) {
-  /* Try full query → drop stance → drop abstract requirement. Return first try that yields ≥5 PMIDs,
-     or the last try's PMIDs if all return <5 (sparse state will handle in Task 10). */
-  var attempts = [];
-  /* Attempt 1: full query */
-  attempts.push({
-    label: 'full',
-    query: buildQuery(state.conceptBlock, state.mode, state.counter, state.excludeIds, true)
-  });
-  /* Attempt 2: drop stance (claim mode only - question mode has no stance to drop) */
-  if (state.mode === 'claim') {
-    attempts.push({
-      label: 'no-stance',
-      query: buildQuery(state.conceptBlock, 'question', false, state.excludeIds, true)
-    });
-  }
-  /* Attempt 3: maximally permissive — drop both stance and abstract.
-     For question mode this is identical to "no-abstract" since there's no stance;
-     for claim mode this is the final fallback when stance filtering is too narrow. */
-  attempts.push({
-    label: 'bare-concept',
-    query: buildQuery(state.conceptBlock, 'question', false, state.excludeIds, false)
-  });
-
-  /* Attempt 4 (only added if conceptBlock has MeSH terms): MeSH-only — extract every
-     "<phrase>"[MeSH Terms] from the concept block and OR them together. This is the
-     final fallback for informal queries where NCBI's translation AND-joined every word
-     into a near-zero result combination, but the underlying MeSH terms are still valid. */
-  var meshMatches = state.conceptBlock.match(/"[^"]+"\[MeSH Terms\]/g);
-  if (meshMatches && meshMatches.length >= 1) {
-    /* Dedupe (same MeSH may appear multiple times in NCBI's translation) */
-    var seen = {};
-    var uniq = [];
-    meshMatches.forEach(function(m) { if (!seen[m]) { seen[m] = 1; uniq.push(m); } });
-    var meshBlock = '(' + uniq.join(' OR ') + ')';
-    attempts.push({
-      label: 'mesh-only',
-      query: buildQuery(meshBlock, 'question', false, state.excludeIds, false)
-    });
-  }
-
-  function tryNext(i, lastPmids) {
-    if (i >= attempts.length) return Promise.resolve(lastPmids);
-    return ncbiSearch(attempts[i].query).then(function(pmids) {
-      if (pmids.length >= 5 || i === attempts.length - 1) {
-        state.widened = (i > 0);
-        return pmids;
+      var results = (d.results || []).map(parseOpenAlexWork);
+      if (excludeIds && excludeIds.length) {
+        results = results.filter(function(w) { return excludeIds.indexOf(w.id) === -1; });
       }
-      return tryNext(i + 1, pmids);
+      return results;
     });
-  }
-  return tryNext(0, []);
 }
 
-function detectOverNarrowTerm(input, conceptBlock) {
-  /* Find the longest word in the user's input (>=4 chars) that does NOT appear in the
-     NCBI query-translation. That term is the most likely culprit for narrowing the search. */
-  if (!input || !conceptBlock) return null;
-  var lowerBlock = conceptBlock.toLowerCase();
-  var tokens = input.toLowerCase().split(/[^a-z0-9]+/).filter(function(w) {
-    return w.length >= 4;
-  });
-  /* Sort longest first */
-  tokens.sort(function(a, b) { return b.length - a.length; });
-  for (var i = 0; i < tokens.length; i++) {
-    if (lowerBlock.indexOf(tokens[i]) === -1) {
-      return tokens[i];
+function parseOpenAlexWork(w) {
+  /* Convert one OpenAlex work into LitSupport's article shape. */
+  var firstAuthor = 'Unknown authors';
+  var auths = w.authorships || [];
+  if (auths.length > 0 && auths[0].author && auths[0].author.display_name) {
+    firstAuthor = auths[0].author.display_name + (auths.length > 1 ? ' et al.' : '');
+  }
+  var venue = '';
+  var pl = w.primary_location || {};
+  if (pl.source && pl.source.display_name) venue = pl.source.display_name;
+  var oaPdfUrl = null;
+  if (w.open_access && w.open_access.oa_url) oaPdfUrl = w.open_access.oa_url;
+  /* Land page URL: prefer DOI link, else the OpenAlex page */
+  var landingUrl = w.doi ? ('https://doi.org/' + String(w.doi).replace(/^https?:\/\/doi\.org\//, '')) : w.id;
+  var abstractText = reconstructAbstract(w.abstract_inverted_index);
+  return {
+    id: w.id,
+    title: w.title || '(Title unavailable)',
+    authors: firstAuthor,
+    journal: venue,
+    year: w.publication_year || '',
+    cites: w.cited_by_count || 0,
+    landingUrl: landingUrl,
+    oaPdfUrl: oaPdfUrl,
+    finding: extractFindingFromText(abstractText)
+  };
+}
+
+function reconstructAbstract(inverted) {
+  /* OpenAlex stores abstracts as inverted indexes ({word: [positions]}).
+     Reconstruct the original text by ordering words by their first position. */
+  if (!inverted) return '';
+  var positions = [];
+  for (var word in inverted) {
+    if (Object.prototype.hasOwnProperty.call(inverted, word)) {
+      inverted[word].forEach(function(p) { positions.push([p, word]); });
     }
   }
-  return null;
+  positions.sort(function(a, b) { return a[0] - b[0]; });
+  return positions.map(function(p) { return p[1]; }).join(' ');
 }
 
-function ncbiSearch(query) {
-  /* Returns array of PMIDs (up to 16). */
-  var url = BASE + 'esearch.fcgi?db=pubmed&retmax=16&retmode=json&sort=relevance&term=' + encodeURIComponent(query);
-  return fetch(url)
-    .then(function(r) {
-      if (!r.ok) throw new Error('PubMed search failed (HTTP ' + r.status + ')');
-      return r.json();
-    })
-    .then(function(d) {
-      return (d.esearchresult && d.esearchresult.idlist) || [];
-    });
+function extractFindingFromText(text) {
+  /* Lightweight finding extractor for OpenAlex's plain-text abstracts.
+     OpenAlex doesn't preserve CONCLUSIONS / RESULTS structure, so we use
+     the last 1-2 sentences as the finding. */
+  if (!text) return null;
+  var sentences = text.split(/(?<=[.!?])\s+/).filter(function(s) { return s.trim().length > 0; });
+  if (sentences.length === 0) return null;
+  var tail = sentences.slice(-2).join(' ').trim();
+  return tail || null;
 }
-
-function ncbiSummary(pmids) {
-  if (!pmids.length) return Promise.resolve({});
-  var url = BASE + 'esummary.fcgi?db=pubmed&retmode=json&id=' + pmids.join(',');
-  return fetch(url)
-    .then(function(r) {
-      if (!r.ok) throw new Error('PubMed summary failed (HTTP ' + r.status + ')');
-      return r.json();
-    })
-    .then(function(d) {
-      var out = {};
-      var result = d.result || {};
-      (result.uids || pmids).forEach(function(uid) {
-        var r = result[uid] || {};
-        var authors = 'Unknown authors';
-        if (r.authors && r.authors.length) {
-          authors = r.authors[0].name + (r.authors.length > 1 ? ' et al.' : '');
-        }
-        var year = '';
-        if (r.pubdate) year = (String(r.pubdate).match(/\d{4}/) || [''])[0];
-        var pmcId = null;
-        if (r.articleids) {
-          for (var i = 0; i < r.articleids.length; i++) {
-            if (r.articleids[i].idtype === 'pmc') { pmcId = r.articleids[i].value; break; }
-          }
-        }
-        out[uid] = {
-          pmid: String(uid),
-          title: r.title || '(Title unavailable)',
-          authors: authors,
-          journal: r.fulljournalname || r.source || '',
-          year: year,
-          pmcId: pmcId
-        };
-      });
-      return out;
-    });
-}
-
-function ncbiFetchAbstracts(pmids) {
-  /* Returns { pmid: { finding: string|null, publicationTypes: [string] } } */
-  if (!pmids.length) return Promise.resolve({});
-  var url = BASE + 'efetch.fcgi?db=pubmed&rettype=abstract&retmode=xml&id=' + pmids.join(',');
-  return fetch(url)
-    .then(function(r) {
-      if (!r.ok) throw new Error('PubMed efetch failed (HTTP ' + r.status + ')');
-      return r.text();
-    })
-    .then(function(text) {
-      var doc = new DOMParser().parseFromString(text, 'text/xml');
-      var out = {};
-      var articles = doc.querySelectorAll('PubmedArticle');
-      for (var i = 0; i < articles.length; i++) {
-        var pmidEl = articles[i].querySelector('PMID');
-        if (!pmidEl) continue;
-        var pmid = pmidEl.textContent.trim();
-        var pubTypes = [];
-        var pts = articles[i].querySelectorAll('PublicationType');
-        for (var j = 0; j < pts.length; j++) pubTypes.push(pts[j].textContent.trim());
-        out[pmid] = {
-          finding: extractFinding(doc, pmid),
-          publicationTypes: pubTypes
-        };
-      }
-      return out;
-    });
-}
-
-function pubmedUrl(pmid) { return 'https://pubmed.ncbi.nlm.nih.gov/' + pmid + '/'; }
-function pmcUrl(pmcId) { return 'https://www.ncbi.nlm.nih.gov/pmc/articles/' + pmcId + '/'; }
 
 /* ────────────────────────────────────────────────────────────
    RENDER
    ──────────────────────────────────────────────────────────── */
 
 function renderCard(article) {
-  var titleUrl = article.pmcId ? pmcUrl(article.pmcId) : pubmedUrl(article.pmid);
   var byline = esc(article.authors);
   if (article.journal) byline += ' &middot; ' + esc(article.journal);
   if (article.year)    byline += ' &middot; ' + esc(article.year);
+  if (article.cites)   byline += ' &middot; cited ' + esc(article.cites);
   var findingHtml = article.finding
     ? '<div class="card-finding">' + esc(article.finding) + '</div>'
     : '';
-  var badgeHtml = article.pmcId
+  var badgeHtml = article.oaPdfUrl
     ? '<span class="badge badge-free">Free full text</span>'
-    : '<span class="badge badge-abs">Abstract only</span>';
+    : '<span class="badge badge-abs">Find via library</span>';
+  var clickUrl = article.oaPdfUrl || article.landingUrl;
   return '' +
-    '<div class="card" data-pmid="' + esc(article.pmid) + '">' +
-      '<a class="card-title" href="' + esc(titleUrl) + '" target="_blank" rel="noopener">' + esc(article.title) + '</a>' +
+    '<div class="card" data-id="' + esc(article.id) + '">' +
+      '<a class="card-title" href="' + esc(clickUrl) + '" target="_blank" rel="noopener">' + esc(article.title) + '</a>' +
       '<div class="card-byline">' + byline + '</div>' +
       findingHtml +
       '<div class="card-footer">' +
         badgeHtml +
-        '<button class="swap-btn" data-action="swap" data-pmid="' + esc(article.pmid) + '">Wrong? Swap →</button>' +
+        '<button class="swap-btn" data-action="swap" data-id="' + esc(article.id) + '">Wrong? Swap →</button>' +
       '</div>' +
     '</div>';
 }
 
 function renderResults(state) {
-  var rhead = '';
-  if (state.mode === 'claim') {
-    rhead = state.counter
-      ? 'Showing counterevidence &middot; <a tabindex="0" role="button" data-action="toggle-counter">see supporting evidence →</a>'
-      : 'Showing supporting evidence &middot; <a tabindex="0" role="button" data-action="toggle-counter">see counterevidence →</a>';
-  } else {
-    rhead = 'Showing ' + state.visible.length + ' result' + (state.visible.length === 1 ? '' : 's');
-  }
-  $('rhead').innerHTML = rhead;
+  $('rhead').innerHTML = 'Showing ' + state.visible.length + ' result' + (state.visible.length === 1 ? '' : 's');
   $('cards').innerHTML = state.visible.map(renderCard).join('');
 
   var sparse = $('sparse');
   if (state.visible.length < 8) {
-    var overNarrow = detectOverNarrowTerm(state.input, state.conceptBlock);
     var hint = 'Only ' + state.visible.length + ' result' + (state.visible.length === 1 ? '' : 's') + ' matched.';
-    if (overNarrow) {
-      hint += ' Try removing specifics like <strong>"' + esc(overNarrow) + '"</strong> or use simpler wording.';
-    } else {
-      hint += ' Try simpler wording or a broader question.';
-    }
+    hint += ' Try simpler wording or a broader question.';
     sparse.innerHTML = hint;
     sparse.classList.add('show');
   } else {
@@ -537,18 +405,16 @@ function renderResults(state) {
   $('results').classList.add('show');
 }
 
-function swapCard(pmid, btn) {
+function swapCard(id, btn) {
   var state = currentState;
   if (!state) return;
-  /* Find index of card to replace */
   var idx = -1;
   for (var i = 0; i < state.visible.length; i++) {
-    if (state.visible[i].pmid === pmid) { idx = i; break; }
+    if (state.visible[i].id === id) { idx = i; break; }
   }
   if (idx === -1) return;
 
-  /* Track exclusion so re-queries don't re-suggest it */
-  state.excludeIds.push(pmid);
+  state.excludeIds.push(id);
 
   /* Cache-first */
   if (state.reserve.length > 0) {
@@ -558,42 +424,19 @@ function swapCard(pmid, btn) {
     return;
   }
 
-  /* Reserve empty — re-query with cumulative excludeIds */
+  /* Reserve empty — re-query OpenAlex with all known excludeIds filtered client-side */
   if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
-  searchWithCascade(state).then(function(pmids) {
-    /* Filter out PMIDs we're already showing */
-    var currentPmids = state.visible.map(function(a) { return a.pmid; });
-    pmids = pmids.filter(function(p) { return currentPmids.indexOf(p) === -1; });
-    if (pmids.length === 0) {
+  openalexSearch(state.query, state.excludeIds).then(function(newArticles) {
+    if (newArticles.length === 0) {
       if (btn) { btn.textContent = 'No more matches'; btn.disabled = true; }
       return;
     }
-    /* Fetch metadata for just the new PMIDs */
-    return Promise.all([ ncbiFetchAbstracts(pmids), ncbiSummary(pmids) ]).then(function(both) {
-      var abstracts = both[0], summaries = both[1];
-      var newArticles = pmids.map(function(p) {
-        var s = summaries[p] || {};
-        var a = abstracts[p] || {};
-        return {
-          pmid: p,
-          title: s.title || '(Title unavailable)',
-          authors: s.authors || 'Unknown authors',
-          journal: s.journal || '',
-          year: s.year || '',
-          pmcId: s.pmcId || null,
-          finding: a.finding || null,
-          publicationTypes: a.publicationTypes || []
-        };
-      });
-      newArticles = rerankByEvidence(newArticles);
-      var replacement2 = newArticles.shift();
-      /* Add all newly-seen PMIDs to excludeIds so future swaps skip them. */
-      state.excludeIds.push(replacement2.pmid);
-      newArticles.forEach(function(a) { state.excludeIds.push(a.pmid); });
-      state.reserve = newArticles;
-      state.visible.splice(idx, 1, replacement2);
-      renderResults(state);
-    });
+    var replacement2 = newArticles.shift();
+    state.excludeIds.push(replacement2.id);
+    newArticles.forEach(function(a) { state.excludeIds.push(a.id); });
+    state.reserve = newArticles;
+    state.visible.splice(idx, 1, replacement2);
+    renderResults(state);
   }).catch(function() {
     if (btn) { btn.textContent = 'Search failed'; btn.disabled = true; }
   });
@@ -610,81 +453,48 @@ $('q').addEventListener('input', function() {
 /* Current search state — held in module-level closure for swap/counter access (Tasks 8-9) */
 var currentState = null;
 
-function runSearch(input, counterevidence, alreadyCorrected) {
+function runSearch(input) {
   clearUi();
   $('loading').classList.add('show');
-  var mode = classifyInput(input);
+  var query = buildOpenAlexQuery(input);
   var state = {
     input: input,
-    mode: mode,
-    counter: !!counterevidence,
+    query: query,
     excludeIds: [],
     visible: [],
     reserve: []
   };
   currentState = state;
 
-  var spellPromise = alreadyCorrected ? Promise.resolve(null) : ncbiSpell(input);
+  if (!query) {
+    $('loading').classList.remove('show');
+    showErr('Please type a few keywords to search.');
+    return Promise.resolve();
+  }
 
-  return spellPromise.then(function(corrected) {
-    if (corrected) {
-      showSpellNotice(corrected, input);
-      state.input = corrected;
-      return ncbiTranslate(corrected);
-    }
-    return ncbiTranslate(input);
-  })
-    .then(function(conceptBlock) {
-      /* If NCBI couldn't produce a useful translation, fall back to the raw input.
-         PubMed's search endpoint does its own MeSH expansion on free text — we lose
-         some precision but get results instead of an error. */
-      state.conceptBlock = conceptBlock || state.input;
-      return searchWithCascade(state);
-    })
-    .then(function(pmids) {
-      state.allPmids = pmids;
-      if (pmids.length === 0) {
+  return openalexSearch(query, [])
+    .then(function(articles) {
+      if (articles.length === 0) {
         $('loading').classList.remove('show');
-        showErr('No PubMed results matched. Try simpler terms or a broader question.');
+        showErr('No scholarly results matched. Try simpler terms or different keywords.');
         return null;
       }
-      return Promise.all([ ncbiFetchAbstracts(pmids), ncbiSummary(pmids) ])
-        .then(function(both) {
-          var abstracts = both[0], summaries = both[1];
-          var articles = pmids.map(function(pmid) {
-            var s = summaries[pmid] || {};
-            var a = abstracts[pmid] || {};
-            return {
-              pmid: pmid,
-              title: s.title || '(Title unavailable)',
-              authors: s.authors || 'Unknown authors',
-              journal: s.journal || '',
-              year: s.year || '',
-              pmcId: s.pmcId || null,
-              finding: a.finding || null,
-              publicationTypes: a.publicationTypes || []
-            };
-          });
-          articles = rerankByEvidence(articles);
-          state.visible = articles.slice(0, 8);
-          state.reserve = articles.slice(8);
-          /* Seed excludeIds with all PMIDs we now know about, so swap re-queries
-             don't re-suggest the same articles. */
-          articles.forEach(function(a) { state.excludeIds.push(a.pmid); });
-          $('loading').classList.remove('show');
-          renderResults(state);
-        });
+      state.visible = articles.slice(0, 8);
+      state.reserve = articles.slice(8);
+      articles.forEach(function(a) { state.excludeIds.push(a.id); });
+      $('loading').classList.remove('show');
+      renderResults(state);
     })
     .catch(function(err) {
       $('loading').classList.remove('show');
-      showErr(err.message || 'PubMed is unreachable. Check your connection and try again.');
+      showErr(err.message || 'OpenAlex is unreachable. Check your connection and try again.');
     });
 }
 
 $('go').addEventListener('click', function() {
   var q = $('q').value.trim();
   if (q.length < 6) return;
-  runSearch(q, false);
+  runSearch(q);
 });
 
 /* ────────────────────────────────────────────────────────────
@@ -840,17 +650,9 @@ document.addEventListener('click', function(ev) {
   var t = ev.target;
   var action = t.getAttribute && t.getAttribute('data-action');
   if (!action) return;
-  if (action === 'search-original') {
-    var notice = $('spell');
-    var em = notice.querySelector('em');
-    if (em) runSearch(em.textContent, currentState && currentState.counter, true);
-  } else if (action === 'swap') {
-    var pmid = t.getAttribute('data-pmid');
-    if (pmid) swapCard(pmid, t);
-  } else if (action === 'toggle-counter') {
-    if (currentState) {
-      runSearch(currentState.input, !currentState.counter, true);
-    }
+  if (action === 'swap') {
+    var id = t.getAttribute('data-id');
+    if (id) swapCard(id, t);
   }
 });
 
