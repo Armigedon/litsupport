@@ -143,7 +143,12 @@ var BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
    ──────────────────────────────────────────────────────────── */
 
 function classifyInput(text) {
-  /* placeholder — implemented in Task 2 */
+  var t = String(text || '').trim();
+  if (t.length === 0) return 'claim';
+  if (t.endsWith('?')) return 'question';
+  if (/^(does|do|can|could|should|is|are|will|what|which|how|when|why)\b/i.test(t)) return 'question';
+  if (/^in (patients|adults|children|women|men|the elderly) with\b/i.test(t)) return 'question';
+  if (/\b(vs|versus|compared (to|with))\b/i.test(t)) return 'question';
   return 'claim';
 }
 
@@ -219,7 +224,17 @@ function runTests() {
 
   console.log('── LitSupport test suite ──');
 
-  /* classifyInput — populated in Task 2 */
+  /* classifyInput */
+  eq('classifyInput: trailing ?', classifyInput('Does aspirin reduce MI?'), 'question');
+  eq('classifyInput: starts with Does', classifyInput('Does aspirin reduce MI'), 'question');
+  eq('classifyInput: starts with In patients with', classifyInput('In patients with afib, rivaroxaban vs warfarin'), 'question');
+  eq('classifyInput: contains vs', classifyInput('rivaroxaban vs warfarin'), 'question');
+  eq('classifyInput: contains versus', classifyInput('rivaroxaban versus warfarin'), 'question');
+  eq('classifyInput: starts with What', classifyInput('What is the best statin'), 'question');
+  eq('classifyInput: plain claim', classifyInput('Aspirin reduces MI risk in adults over 50.'), 'claim');
+  eq('classifyInput: short claim', classifyInput('vegetables are healthy'), 'claim');
+  eq('classifyInput: trims whitespace', classifyInput('   Does it work?   '), 'question');
+  eq('classifyInput: case insensitive question word', classifyInput('CAN I take this with food'), 'question');
   /* extractFinding — populated in Task 3 */
   /* rerankByEvidence — populated in Task 4 */
 
