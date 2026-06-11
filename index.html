@@ -145,7 +145,7 @@ var BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 function classifyInput(text) {
   var t = String(text || '').trim();
   if (t.length === 0) return 'claim';
-  if (t.endsWith('?')) return 'question';
+  if (t.charAt(t.length - 1) === '?') return 'question';
   if (/^(does|do|can|could|should|is|are|will|what|which|how|when|why)\b/i.test(t)) return 'question';
   if (/^in (patients|adults|children|women|men|the elderly) with\b/i.test(t)) return 'question';
   if (/\b(vs|versus|compared (to|with))\b/i.test(t)) return 'question';
