@@ -153,8 +153,47 @@ function classifyInput(text) {
 }
 
 function extractFinding(efetchXmlDoc, pmid) {
-  /* placeholder — implemented in Task 3 */
-  return null;
+  if (!efetchXmlDoc || !pmid) return null;
+  var articles = efetchXmlDoc.querySelectorAll('PubmedArticle');
+  var target = null;
+  for (var i = 0; i < articles.length; i++) {
+    var pmidEl = articles[i].querySelector('PMID');
+    if (pmidEl && pmidEl.textContent.trim() === String(pmid)) {
+      target = articles[i]; break;
+    }
+  }
+  if (!target) return null;
+
+  var abstractTexts = target.querySelectorAll('AbstractText');
+  if (abstractTexts.length === 0) return null;
+
+  /* Pass 1: prefer CONCLUSIONS */
+  for (var j = 0; j < abstractTexts.length; j++) {
+    var lbl = (abstractTexts[j].getAttribute('Label') || '').toUpperCase();
+    if (lbl === 'CONCLUSIONS' || lbl === 'CONCLUSION') {
+      var txt = abstractTexts[j].textContent.trim();
+      if (txt) return txt;
+    }
+  }
+  /* Pass 2: fall back to RESULTS */
+  for (var k = 0; k < abstractTexts.length; k++) {
+    var lbl2 = (abstractTexts[k].getAttribute('Label') || '').toUpperCase();
+    if (lbl2 === 'RESULTS' || lbl2 === 'RESULT' || lbl2 === 'FINDINGS') {
+      var txt2 = abstractTexts[k].textContent.trim();
+      if (txt2) return txt2;
+    }
+  }
+  /* Pass 3: unstructured — concatenate, take last 1–2 sentences */
+  var combined = '';
+  for (var m = 0; m < abstractTexts.length; m++) {
+    combined += (combined ? ' ' : '') + abstractTexts[m].textContent.trim();
+  }
+  if (!combined) return null;
+  /* Split on . / ! / ? followed by whitespace; keep the last 2 non-empty sentences */
+  var sentences = combined.split(/(?<=[.!?])\s+/).filter(function(s) { return s.trim().length > 0; });
+  if (sentences.length === 0) return null;
+  var lastTwo = sentences.slice(-2).join(' ').trim();
+  return lastTwo || null;
 }
 
 function rerankByEvidence(articles) {
@@ -221,6 +260,9 @@ function runTests() {
   function eq(name, actual, expected) {
     assert(name + ' (got: ' + JSON.stringify(actual) + ')', actual === expected);
   }
+  function xml(s) {
+    return new DOMParser().parseFromString(s, 'text/xml');
+  }
 
   console.log('── LitSupport test suite ──');
 
@@ -235,7 +277,61 @@ function runTests() {
   eq('classifyInput: short claim', classifyInput('vegetables are healthy'), 'claim');
   eq('classifyInput: trims whitespace', classifyInput('   Does it work?   '), 'question');
   eq('classifyInput: case insensitive question word', classifyInput('CAN I take this with food'), 'question');
-  /* extractFinding — populated in Task 3 */
+  /* extractFinding */
+  var structuredXml = xml(
+    '<PubmedArticleSet>' +
+      '<PubmedArticle>' +
+        '<MedlineCitation>' +
+          '<PMID>111</PMID>' +
+          '<Article>' +
+            '<Abstract>' +
+              '<AbstractText Label="BACKGROUND">Background text.</AbstractText>' +
+              '<AbstractText Label="METHODS">Methods text.</AbstractText>' +
+              '<AbstractText Label="RESULTS">Results text.</AbstractText>' +
+              '<AbstractText Label="CONCLUSIONS">Rivaroxaban reduced stroke by 21% versus warfarin.</AbstractText>' +
+            '</Abstract>' +
+          '</Article>' +
+        '</MedlineCitation>' +
+      '</PubmedArticle>' +
+    '</PubmedArticleSet>'
+  );
+  eq('extractFinding: prefers CONCLUSIONS',
+     extractFinding(structuredXml, '111'),
+     'Rivaroxaban reduced stroke by 21% versus warfarin.');
+
+  var resultsOnlyXml = xml(
+    '<PubmedArticleSet><PubmedArticle><MedlineCitation>' +
+      '<PMID>222</PMID>' +
+      '<Article><Abstract>' +
+        '<AbstractText Label="RESULTS">No significant difference in major bleeding.</AbstractText>' +
+      '</Abstract></Article>' +
+    '</MedlineCitation></PubmedArticle></PubmedArticleSet>'
+  );
+  eq('extractFinding: falls back to RESULTS',
+     extractFinding(resultsOnlyXml, '222'),
+     'No significant difference in major bleeding.');
+
+  var unstructuredXml = xml(
+    '<PubmedArticleSet><PubmedArticle><MedlineCitation>' +
+      '<PMID>333</PMID>' +
+      '<Article><Abstract>' +
+        '<AbstractText>This was a cohort study of 1500 adults. Outcomes were measured at 12 months. Mortality was lower in the treatment arm by 15%.</AbstractText>' +
+      '</Abstract></Article>' +
+    '</MedlineCitation></PubmedArticle></PubmedArticleSet>'
+  );
+  var unstructured = extractFinding(unstructuredXml, '333');
+  assert('extractFinding: unstructured returns last sentence(s) containing the finding',
+    unstructured && unstructured.indexOf('Mortality was lower') !== -1);
+
+  var emptyXml = xml(
+    '<PubmedArticleSet><PubmedArticle><MedlineCitation>' +
+      '<PMID>444</PMID>' +
+      '<Article></Article>' +
+    '</MedlineCitation></PubmedArticle></PubmedArticleSet>'
+  );
+  eq('extractFinding: returns null when no abstract', extractFinding(emptyXml, '444'), null);
+
+  eq('extractFinding: returns null when PMID not in doc', extractFinding(structuredXml, '999'), null);
   /* rerankByEvidence — populated in Task 4 */
 
   console.log('── ' + passed + ' passed, ' + failed + ' failed ──');
