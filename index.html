@@ -197,6 +197,7 @@ function extractFinding(efetchXmlDoc, pmid) {
 }
 
 function rerankByEvidence(articles) {
+  if (!articles || !articles.length) return [];
   var TIER = {
     /* Tier 1 — synthesis */
     'meta-analysis': 1, 'systematic review': 1,
@@ -211,7 +212,7 @@ function rerankByEvidence(articles) {
     var best = 4;
     for (var i = 0; i < types.length; i++) {
       var t = TIER[types[i]];
-      if (t && t < best) best = t;
+      if (t !== undefined && t < best) best = t;
     }
     return best;
   }
