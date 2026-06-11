@@ -616,8 +616,10 @@ function runSearch(input, counterevidence, alreadyCorrected) {
     return ncbiTranslate(input);
   })
     .then(function(conceptBlock) {
-      if (!conceptBlock) throw new Error('NCBI could not interpret your query. Try simpler terms.');
-      state.conceptBlock = conceptBlock;
+      /* If NCBI couldn't produce a useful translation, fall back to the raw input.
+         PubMed's search endpoint does its own MeSH expansion on free text — we lose
+         some precision but get results instead of an error. */
+      state.conceptBlock = conceptBlock || state.input;
       return searchWithCascade(state);
     })
     .then(function(pmids) {
