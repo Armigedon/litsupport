@@ -288,6 +288,41 @@ function buildQuery(conceptBlock, mode, counter, excludeIds, includeAbstract) {
   return q;
 }
 
+function searchWithCascade(state) {
+  /* Try full query → drop stance → drop abstract requirement. Return first try that yields ≥5 PMIDs,
+     or the last try's PMIDs if all return <5 (sparse state will handle in Task 10). */
+  var attempts = [];
+  /* Attempt 1: full query */
+  attempts.push({
+    label: 'full',
+    query: buildQuery(state.conceptBlock, state.mode, state.counter, state.excludeIds, true)
+  });
+  /* Attempt 2: drop stance (claim mode only - question mode has no stance to drop) */
+  if (state.mode === 'claim') {
+    attempts.push({
+      label: 'no-stance',
+      query: buildQuery(state.conceptBlock, 'question', false, state.excludeIds, true)
+    });
+  }
+  /* Attempt 3: drop abstract requirement */
+  attempts.push({
+    label: 'no-abstract',
+    query: buildQuery(state.conceptBlock, state.mode, state.counter, state.excludeIds, false)
+  });
+
+  function tryNext(i, lastPmids) {
+    if (i >= attempts.length) return Promise.resolve(lastPmids);
+    return ncbiSearch(attempts[i].query).then(function(pmids) {
+      if (pmids.length >= 5 || i === attempts.length - 1) {
+        state.widened = (i > 0);
+        return pmids;
+      }
+      return tryNext(i + 1, pmids);
+    });
+  }
+  return tryNext(0, []);
+}
+
 function ncbiSearch(query) {
   /* Returns array of PMIDs (up to 16). */
   var url = BASE + 'esearch.fcgi?db=pubmed&retmax=16&retmode=json&sort=relevance&term=' + encodeURIComponent(query);
@@ -441,8 +476,7 @@ function runSearch(input, counterevidence) {
     .then(function(conceptBlock) {
       if (!conceptBlock) throw new Error('NCBI could not interpret your query. Try simpler terms.');
       state.conceptBlock = conceptBlock;
-      var query = buildQuery(conceptBlock, mode, state.counter, [], true);
-      return ncbiSearch(query);
+      return searchWithCascade(state);
     })
     .then(function(pmids) {
       state.allPmids = pmids;
