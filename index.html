@@ -349,6 +349,23 @@ function searchWithCascade(state) {
     query: buildQuery(state.conceptBlock, 'question', false, state.excludeIds, false)
   });
 
+  /* Attempt 4 (only added if conceptBlock has MeSH terms): MeSH-only — extract every
+     "<phrase>"[MeSH Terms] from the concept block and OR them together. This is the
+     final fallback for informal queries where NCBI's translation AND-joined every word
+     into a near-zero result combination, but the underlying MeSH terms are still valid. */
+  var meshMatches = state.conceptBlock.match(/"[^"]+"\[MeSH Terms\]/g);
+  if (meshMatches && meshMatches.length >= 1) {
+    /* Dedupe (same MeSH may appear multiple times in NCBI's translation) */
+    var seen = {};
+    var uniq = [];
+    meshMatches.forEach(function(m) { if (!seen[m]) { seen[m] = 1; uniq.push(m); } });
+    var meshBlock = '(' + uniq.join(' OR ') + ')';
+    attempts.push({
+      label: 'mesh-only',
+      query: buildQuery(meshBlock, 'question', false, state.excludeIds, false)
+    });
+  }
+
   function tryNext(i, lastPmids) {
     if (i >= attempts.length) return Promise.resolve(lastPmids);
     return ncbiSearch(attempts[i].query).then(function(pmids) {
