@@ -245,6 +245,15 @@ function showErr(msg) {
   e.classList.add('show');
 }
 
+function showSpellNotice(corrected, original) {
+  var html =
+    'Showing results for: <strong>' + esc(corrected) + '</strong>. ' +
+    '<a data-action="search-original">Search instead for <em>' + esc(original) + '</em></a>';
+  var el = $('spell');
+  el.innerHTML = html;
+  el.classList.add('show');
+}
+
 function clearUi() {
   $('err').classList.remove('show');
   $('spell').classList.remove('show');
@@ -259,6 +268,34 @@ function clearUi() {
 
 var STANCE_SUPPORT = '("systematic review"[pt] OR "meta-analysis"[pt] OR "review"[pt] OR "clinical trial"[pt])';
 var STANCE_COUNTER = '("journal article"[pt] NOT "review"[pt])';
+
+function ncbiSpell(query) {
+  /* Returns the corrected query if meaningfully different from input, else null. */
+  var url = BASE + 'espell.fcgi?db=pubmed&term=' + encodeURIComponent(query);
+  return fetch(url)
+    .then(function(r) {
+      if (!r.ok) return null;
+      return r.text();
+    })
+    .then(function(text) {
+      if (!text) return null;
+      var doc = new DOMParser().parseFromString(text, 'text/xml');
+      var corrected = doc.querySelector('CorrectedQuery');
+      if (!corrected) return null;
+      var c = corrected.textContent.trim();
+      if (!c) return null;
+      if (c.toLowerCase() === query.toLowerCase()) return null;
+      /* Require at least one whole-token change to avoid trivial casing tweaks */
+      var qTokens = query.toLowerCase().split(/\s+/);
+      var cTokens = c.toLowerCase().split(/\s+/);
+      var changed = false;
+      for (var i = 0; i < cTokens.length; i++) {
+        if (qTokens.indexOf(cTokens[i]) === -1) { changed = true; break; }
+      }
+      return changed ? c : null;
+    })
+    .catch(function() { return null; });
+}
 
 function ncbiTranslate(query) {
   /* Returns the NCBI MeSH-mapped concept block, or null if unusable. */
@@ -458,7 +495,7 @@ $('q').addEventListener('input', function() {
 /* Current search state — held in module-level closure for swap/counter access (Tasks 8-9) */
 var currentState = null;
 
-function runSearch(input, counterevidence) {
+function runSearch(input, counterevidence, alreadyCorrected) {
   clearUi();
   $('loading').classList.add('show');
   var mode = classifyInput(input);
@@ -472,7 +509,16 @@ function runSearch(input, counterevidence) {
   };
   currentState = state;
 
-  return ncbiTranslate(input)
+  var spellPromise = alreadyCorrected ? Promise.resolve(null) : ncbiSpell(input);
+
+  return spellPromise.then(function(corrected) {
+    if (corrected) {
+      showSpellNotice(corrected, input);
+      state.input = corrected;
+      return ncbiTranslate(corrected);
+    }
+    return ncbiTranslate(input);
+  })
     .then(function(conceptBlock) {
       if (!conceptBlock) throw new Error('NCBI could not interpret your query. Try simpler terms.');
       state.conceptBlock = conceptBlock;
@@ -669,6 +715,17 @@ function runTests() {
 
   console.log('── ' + passed + ' passed, ' + failed + ' failed ──');
 }
+
+document.addEventListener('click', function(ev) {
+  var t = ev.target;
+  var action = t.getAttribute && t.getAttribute('data-action');
+  if (!action) return;
+  if (action === 'search-original') {
+    var notice = $('spell');
+    var em = notice.querySelector('em');
+    if (em) runSearch(em.textContent, currentState && currentState.counter, true);
+  }
+});
 
 if (location.hash === '#test') {
   runTests();
