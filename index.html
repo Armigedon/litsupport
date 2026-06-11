@@ -254,6 +254,159 @@ function clearUi() {
 }
 
 /* ────────────────────────────────────────────────────────────
+   NCBI PIPELINE
+   ──────────────────────────────────────────────────────────── */
+
+var STANCE_SUPPORT = '("systematic review"[pt] OR "meta-analysis"[pt] OR "review"[pt] OR "clinical trial"[pt])';
+var STANCE_COUNTER = '("journal article"[pt] NOT "review"[pt])';
+
+function ncbiTranslate(query) {
+  /* Returns the NCBI MeSH-mapped concept block, or null if unusable. */
+  var url = BASE + 'esearch.fcgi?db=pubmed&retmax=0&retmode=json&usehistory=n&term=' + encodeURIComponent(query);
+  return fetch(url)
+    .then(function(r) {
+      if (!r.ok) throw new Error('NCBI translate failed (HTTP ' + r.status + ')');
+      return r.json();
+    })
+    .then(function(d) {
+      var tr = d.esearchresult && d.esearchresult.querytranslation;
+      if (!tr || tr.length < 6 || tr.indexOf('[uid]') !== -1) return null;
+      /* Strip any embedded date clauses */
+      return tr.replace(/\s*AND\s+\d{4}\/\d{2}\/\d{2}\[.*?\]/g, '').trim();
+    })
+    .catch(function() { return null; });
+}
+
+function buildQuery(conceptBlock, mode, counter, excludeIds, includeAbstract) {
+  var q = conceptBlock;
+  if (mode === 'claim' && !counter) q += ' AND ' + STANCE_SUPPORT;
+  else if (mode === 'claim' && counter) q += ' AND ' + STANCE_COUNTER;
+  if (includeAbstract) q += ' AND hasabstract[text]';
+  if (excludeIds && excludeIds.length) {
+    excludeIds.forEach(function(id) { q += ' NOT ' + id + '[uid]'; });
+  }
+  return q;
+}
+
+function ncbiSearch(query) {
+  /* Returns array of PMIDs (up to 16). */
+  var url = BASE + 'esearch.fcgi?db=pubmed&retmax=16&retmode=json&sort=relevance&term=' + encodeURIComponent(query);
+  return fetch(url)
+    .then(function(r) {
+      if (!r.ok) throw new Error('PubMed search failed (HTTP ' + r.status + ')');
+      return r.json();
+    })
+    .then(function(d) {
+      return (d.esearchresult && d.esearchresult.idlist) || [];
+    });
+}
+
+function ncbiSummary(pmids) {
+  if (!pmids.length) return Promise.resolve({});
+  var url = BASE + 'esummary.fcgi?db=pubmed&retmode=json&id=' + pmids.join(',');
+  return fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var out = {};
+      var result = d.result || {};
+      (result.uids || pmids).forEach(function(uid) {
+        var r = result[uid] || {};
+        var authors = 'Unknown authors';
+        if (r.authors && r.authors.length) {
+          authors = r.authors[0].name + (r.authors.length > 1 ? ' et al.' : '');
+        }
+        var year = '';
+        if (r.pubdate) year = (String(r.pubdate).match(/\d{4}/) || [''])[0];
+        var pmcId = null;
+        if (r.articleids) {
+          for (var i = 0; i < r.articleids.length; i++) {
+            if (r.articleids[i].idtype === 'pmc') { pmcId = r.articleids[i].value; break; }
+          }
+        }
+        out[uid] = {
+          pmid: String(uid),
+          title: r.title || '(Title unavailable)',
+          authors: authors,
+          journal: r.fulljournalname || r.source || '',
+          year: year,
+          pmcId: pmcId
+        };
+      });
+      return out;
+    });
+}
+
+function ncbiFetchAbstracts(pmids) {
+  /* Returns { pmid: { finding: string|null, publicationTypes: [string] } } */
+  if (!pmids.length) return Promise.resolve({});
+  var url = BASE + 'efetch.fcgi?db=pubmed&rettype=abstract&retmode=xml&id=' + pmids.join(',');
+  return fetch(url)
+    .then(function(r) { return r.text(); })
+    .then(function(text) {
+      var doc = new DOMParser().parseFromString(text, 'text/xml');
+      var out = {};
+      var articles = doc.querySelectorAll('PubmedArticle');
+      for (var i = 0; i < articles.length; i++) {
+        var pmidEl = articles[i].querySelector('PMID');
+        if (!pmidEl) continue;
+        var pmid = pmidEl.textContent.trim();
+        var pubTypes = [];
+        var pts = articles[i].querySelectorAll('PublicationType');
+        for (var j = 0; j < pts.length; j++) pubTypes.push(pts[j].textContent.trim());
+        out[pmid] = {
+          finding: extractFinding(doc, pmid),
+          publicationTypes: pubTypes
+        };
+      }
+      return out;
+    });
+}
+
+function pubmedUrl(pmid) { return 'https://pubmed.ncbi.nlm.nih.gov/' + pmid + '/'; }
+function pmcUrl(pmcId) { return 'https://www.ncbi.nlm.nih.gov/pmc/articles/' + pmcId + '/'; }
+
+/* ────────────────────────────────────────────────────────────
+   RENDER
+   ──────────────────────────────────────────────────────────── */
+
+function renderCard(article) {
+  var titleUrl = article.pmcId ? pmcUrl(article.pmcId) : pubmedUrl(article.pmid);
+  var byline = esc(article.authors);
+  if (article.journal) byline += ' &middot; ' + esc(article.journal);
+  if (article.year)    byline += ' &middot; ' + esc(article.year);
+  var findingHtml = article.finding
+    ? '<div class="card-finding">' + esc(article.finding) + '</div>'
+    : '';
+  var badgeHtml = article.pmcId
+    ? '<span class="badge badge-free">Free full text</span>'
+    : '<span class="badge badge-abs">Abstract only</span>';
+  return '' +
+    '<div class="card" data-pmid="' + esc(article.pmid) + '">' +
+      '<a class="card-title" href="' + titleUrl + '" target="_blank" rel="noopener">' + esc(article.title) + '</a>' +
+      '<div class="card-byline">' + byline + '</div>' +
+      findingHtml +
+      '<div class="card-footer">' +
+        badgeHtml +
+        '<button class="swap-btn" data-action="swap" data-pmid="' + esc(article.pmid) + '">Wrong? Swap →</button>' +
+      '</div>' +
+    '</div>';
+}
+
+function renderResults(state) {
+  var rhead = '';
+  if (state.mode === 'claim') {
+    rhead = state.counter
+      ? 'Showing counterevidence &middot; <a data-action="toggle-counter">see supporting evidence →</a>'
+      : 'Showing supporting evidence &middot; <a data-action="toggle-counter">see counterevidence →</a>';
+  } else {
+    rhead = 'Showing ' + state.visible.length + ' result' + (state.visible.length === 1 ? '' : 's');
+  }
+  $('rhead').innerHTML = rhead;
+  $('cards').innerHTML = state.visible.map(renderCard).join('');
+  $('results').classList.add('show');
+}
+
+/* ────────────────────────────────────────────────────────────
    INPUT WIRING
    ──────────────────────────────────────────────────────────── */
 
@@ -261,16 +414,71 @@ $('q').addEventListener('input', function() {
   $('go').disabled = $('q').value.trim().length < 6;
 });
 
+/* Current search state — held in module-level closure for swap/counter access (Tasks 8-9) */
+var currentState = null;
+
+function runSearch(input, counterevidence) {
+  clearUi();
+  $('loading').classList.add('show');
+  var mode = classifyInput(input);
+  var state = {
+    input: input,
+    mode: mode,
+    counter: !!counterevidence,
+    excludeIds: [],
+    visible: [],
+    reserve: []
+  };
+  currentState = state;
+
+  return ncbiTranslate(input)
+    .then(function(conceptBlock) {
+      if (!conceptBlock) throw new Error('NCBI could not interpret your query. Try simpler terms.');
+      state.conceptBlock = conceptBlock;
+      var query = buildQuery(conceptBlock, mode, state.counter, [], true);
+      return ncbiSearch(query);
+    })
+    .then(function(pmids) {
+      state.allPmids = pmids;
+      if (pmids.length === 0) {
+        $('loading').classList.remove('show');
+        showErr('No PubMed results matched. Try simpler terms or a broader question.');
+        return null;
+      }
+      return Promise.all([ ncbiFetchAbstracts(pmids), ncbiSummary(pmids) ])
+        .then(function(both) {
+          var abstracts = both[0], summaries = both[1];
+          var articles = pmids.map(function(pmid) {
+            var s = summaries[pmid] || {};
+            var a = abstracts[pmid] || {};
+            return {
+              pmid: pmid,
+              title: s.title,
+              authors: s.authors,
+              journal: s.journal,
+              year: s.year,
+              pmcId: s.pmcId,
+              finding: a.finding || null,
+              publicationTypes: a.publicationTypes || []
+            };
+          });
+          articles = rerankByEvidence(articles);
+          state.visible = articles.slice(0, 8);
+          state.reserve = articles.slice(8);
+          $('loading').classList.remove('show');
+          renderResults(state);
+        });
+    })
+    .catch(function(err) {
+      $('loading').classList.remove('show');
+      showErr(err.message || 'PubMed is unreachable. Check your connection and try again.');
+    });
+}
+
 $('go').addEventListener('click', function() {
   var q = $('q').value.trim();
   if (q.length < 6) return;
-  clearUi();
-  $('loading').classList.add('show');
-  /* network pipeline wired in Task 5 */
-  setTimeout(function() {
-    $('loading').classList.remove('show');
-    showErr('Search not wired yet — implemented in Task 5.');
-  }, 200);
+  runSearch(q, false);
 });
 
 /* ────────────────────────────────────────────────────────────
