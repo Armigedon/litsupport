@@ -248,7 +248,7 @@ function showErr(msg) {
 function showSpellNotice(corrected, original) {
   var html =
     'Showing results for: <strong>' + esc(corrected) + '</strong>. ' +
-    '<a data-action="search-original">Search instead for <em>' + esc(original) + '</em></a>';
+    '<a tabindex="0" role="button" data-action="search-original">Search instead for <em>' + esc(original) + '</em></a>';
   var el = $('spell');
   el.innerHTML = html;
   el.classList.add('show');
@@ -492,8 +492,8 @@ function renderResults(state) {
   var rhead = '';
   if (state.mode === 'claim') {
     rhead = state.counter
-      ? 'Showing counterevidence &middot; <a data-action="toggle-counter">see supporting evidence →</a>'
-      : 'Showing supporting evidence &middot; <a data-action="toggle-counter">see counterevidence →</a>';
+      ? 'Showing counterevidence &middot; <a tabindex="0" role="button" data-action="toggle-counter">see supporting evidence →</a>'
+      : 'Showing supporting evidence &middot; <a tabindex="0" role="button" data-action="toggle-counter">see counterevidence →</a>';
   } else {
     rhead = 'Showing ' + state.visible.length + ' result' + (state.visible.length === 1 ? '' : 's');
   }
@@ -831,6 +831,15 @@ document.addEventListener('click', function(ev) {
       runSearch(currentState.input, !currentState.counter, true);
     }
   }
+});
+
+document.addEventListener('keydown', function(ev) {
+  if (ev.key !== 'Enter' && ev.key !== ' ') return;
+  var t = ev.target;
+  if (!t.getAttribute || !t.getAttribute('data-action')) return;
+  ev.preventDefault();
+  /* Synthesize a click on the focused data-action element */
+  t.click();
 });
 
 if (location.hash === '#test') {
