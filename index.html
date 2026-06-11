@@ -360,6 +360,24 @@ function searchWithCascade(state) {
   return tryNext(0, []);
 }
 
+function detectOverNarrowTerm(input, conceptBlock) {
+  /* Find the longest word in the user's input (>=4 chars) that does NOT appear in the
+     NCBI query-translation. That term is the most likely culprit for narrowing the search. */
+  if (!input || !conceptBlock) return null;
+  var lowerBlock = conceptBlock.toLowerCase();
+  var tokens = input.toLowerCase().split(/[^a-z0-9]+/).filter(function(w) {
+    return w.length >= 4;
+  });
+  /* Sort longest first */
+  tokens.sort(function(a, b) { return b.length - a.length; });
+  for (var i = 0; i < tokens.length; i++) {
+    if (lowerBlock.indexOf(tokens[i]) === -1) {
+      return tokens[i];
+    }
+  }
+  return null;
+}
+
 function ncbiSearch(query) {
   /* Returns array of PMIDs (up to 16). */
   var url = BASE + 'esearch.fcgi?db=pubmed&retmax=16&retmode=json&sort=relevance&term=' + encodeURIComponent(query);
@@ -481,6 +499,22 @@ function renderResults(state) {
   }
   $('rhead').innerHTML = rhead;
   $('cards').innerHTML = state.visible.map(renderCard).join('');
+
+  var sparse = $('sparse');
+  if (state.visible.length < 8) {
+    var overNarrow = detectOverNarrowTerm(state.input, state.conceptBlock);
+    var hint = 'Only ' + state.visible.length + ' result' + (state.visible.length === 1 ? '' : 's') + ' matched.';
+    if (overNarrow) {
+      hint += ' Try removing specifics like <strong>"' + esc(overNarrow) + '"</strong> or use simpler wording.';
+    } else {
+      hint += ' Try simpler wording or a broader question.';
+    }
+    sparse.innerHTML = hint;
+    sparse.classList.add('show');
+  } else {
+    sparse.classList.remove('show');
+  }
+
   $('results').classList.add('show');
 }
 
