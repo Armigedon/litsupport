@@ -534,7 +534,10 @@ function swapCard(pmid, btn) {
       });
       newArticles = rerankByEvidence(newArticles);
       var replacement2 = newArticles.shift();
-      state.reserve = newArticles;  // any leftover seeds the new reserve
+      /* Add all newly-seen PMIDs to excludeIds so future swaps skip them. */
+      state.excludeIds.push(replacement2.pmid);
+      newArticles.forEach(function(a) { state.excludeIds.push(a.pmid); });
+      state.reserve = newArticles;
       state.visible.splice(idx, 1, replacement2);
       renderResults(state);
     });
@@ -610,6 +613,9 @@ function runSearch(input, counterevidence, alreadyCorrected) {
           articles = rerankByEvidence(articles);
           state.visible = articles.slice(0, 8);
           state.reserve = articles.slice(8);
+          /* Seed excludeIds with all PMIDs we now know about, so swap re-queries
+             don't re-suggest the same articles. */
+          articles.forEach(function(a) { state.excludeIds.push(a.pmid); });
           $('loading').classList.remove('show');
           renderResults(state);
         });
