@@ -197,8 +197,33 @@ function extractFinding(efetchXmlDoc, pmid) {
 }
 
 function rerankByEvidence(articles) {
-  /* placeholder — implemented in Task 4 */
-  return articles;
+  var TIER = {
+    /* Tier 1 — synthesis */
+    'meta-analysis': 1, 'systematic review': 1,
+    /* Tier 2 — primary controlled */
+    'randomized controlled trial': 2, 'clinical trial': 2,
+    /* Tier 3 — observational */
+    'cohort studies': 3, 'case-control studies': 3,
+    'observational study': 3, 'cross-sectional studies': 3
+  };
+  function tierOf(a) {
+    var types = (a.publicationTypes || []).map(function(t) { return String(t).toLowerCase(); });
+    var best = 4;
+    for (var i = 0; i < types.length; i++) {
+      var t = TIER[types[i]];
+      if (t && t < best) best = t;
+    }
+    return best;
+  }
+  /* Decorate with original index for stable sort */
+  var decorated = articles.map(function(a, idx) {
+    return { article: a, tier: tierOf(a), idx: idx };
+  });
+  decorated.sort(function(x, y) {
+    if (x.tier !== y.tier) return x.tier - y.tier;
+    return x.idx - y.idx;
+  });
+  return decorated.map(function(d) { return d.article; });
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -361,7 +386,37 @@ function runTests() {
      extractFinding(lancetXml, '666'),
      'Lancet-style interpretation text.');
 
-  /* rerankByEvidence — populated in Task 4 */
+  /* rerankByEvidence */
+  var articles = [
+    { pmid: 'A', publicationTypes: ['Journal Article', 'Cohort Studies'] },
+    { pmid: 'B', publicationTypes: ['Journal Article', 'Meta-Analysis', 'Review'] },
+    { pmid: 'C', publicationTypes: ['Journal Article', 'Randomized Controlled Trial'] },
+    { pmid: 'D', publicationTypes: ['Journal Article'] },
+    { pmid: 'E', publicationTypes: ['Journal Article', 'Systematic Review'] },
+    { pmid: 'F', publicationTypes: ['Journal Article', 'Randomized Controlled Trial'] }
+  ];
+  var ranked = rerankByEvidence(articles);
+  var order = ranked.map(function(a) { return a.pmid; }).join('');
+  eq('rerankByEvidence: tier 1 (meta/sys) ahead of tier 2 (RCT) ahead of tier 3 (cohort) ahead of tier 4',
+     order, 'BECFAD');
+
+  var stable = rerankByEvidence([
+    { pmid: '1', publicationTypes: ['Randomized Controlled Trial'] },
+    { pmid: '2', publicationTypes: ['Randomized Controlled Trial'] },
+    { pmid: '3', publicationTypes: ['Randomized Controlled Trial'] }
+  ]);
+  eq('rerankByEvidence: stable within tier',
+     stable.map(function(a) { return a.pmid; }).join(''), '123');
+
+  var empty = rerankByEvidence([]);
+  assert('rerankByEvidence: empty array OK', empty.length === 0);
+
+  var noTypes = rerankByEvidence([
+    { pmid: 'X', publicationTypes: [] },
+    { pmid: 'Y', publicationTypes: ['Meta-Analysis'] }
+  ]);
+  eq('rerankByEvidence: missing publicationTypes treated as tier 4',
+     noTypes.map(function(a) { return a.pmid; }).join(''), 'YX');
 
   console.log('── ' + passed + ' passed, ' + failed + ' failed ──');
 }
