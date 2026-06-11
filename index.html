@@ -262,6 +262,7 @@ var OPENALEX_BASE = 'https://api.openalex.org/works';
 /* Stopwords stripped from the user's input before sending to OpenAlex.
    These add no signal and dilute relevance ranking. */
 var STOPWORDS = (
+  /* Grammatical / function words */
   'a an the of in on at to for and or but if then than as is are was were be been ' +
   'being have has had do does did will would could should may might can must shall ' +
   'i you he she it we they me him her us them my your his hers our their this that ' +
@@ -270,7 +271,19 @@ var STOPWORDS = (
   'among across against very just only also more most some any all each both few ' +
   'many such own same other another not no nor so too however therefore although ' +
   'because since while having allow allows allowed allowing accept accepts ' +
-  'accepted accepting using used use'
+  'accepted accepting using used use ' +
+  /* Generic academic-prose nouns that appear in every paper and add zero signal */
+  'study studies research paper article review evidence approach method methods ' +
+  'way ways year years group groups person people work works workplace role roles ' +
+  'responsibility responsibilities task tasks job jobs duty duties function functions ' +
+  'level levels value values factor factors impact impacts effect effects ' +
+  'result results outcome outcomes finding findings benefit benefits problem problems ' +
+  'issue issues question questions answer answers view views opinion opinions ' +
+  'position positions status change changes increase decrease improvement growth decline ' +
+  'context contexts setting settings environment future present current recent past ' +
+  'system systems condition conditions case cases example examples type types kind kinds ' +
+  'form forms part parts section sections side sides aspect aspects point points ' +
+  'time times day days month months week weeks moment situations situation field fields'
 ).split(/\s+/);
 
 function buildOpenAlexQuery(input) {
@@ -282,6 +295,24 @@ function buildOpenAlexQuery(input) {
     .replace(/[^a-z0-9\s\-]/g, ' ')
     .split(/\s+/)
     .filter(function(t) { return t.length >= 3 && STOPWORDS.indexOf(t) === -1; });
+  /* Dedupe (later occurrences of the same token add nothing) */
+  var seen = {};
+  tokens = tokens.filter(function(t) {
+    if (seen[t]) return false;
+    seen[t] = 1;
+    return true;
+  });
+  /* If we have more than 4 tokens, pick the 4 longest. Longer English tokens are
+     usually more semantically distinctive (rare medical/technical vocabulary).
+     Preserve the input order among the kept tokens so phrase-like adjacency
+     is somewhat retained. */
+  if (tokens.length > 4) {
+    var byLen = tokens.slice().sort(function(a, b) { return b.length - a.length; });
+    var keep = byLen.slice(0, 4);
+    var keepSet = {};
+    keep.forEach(function(t) { keepSet[t] = 1; });
+    tokens = tokens.filter(function(t) { return keepSet[t]; });
+  }
   return tokens.join(' ');
 }
 
@@ -389,7 +420,11 @@ function renderCard(article) {
 }
 
 function renderResults(state) {
-  $('rhead').innerHTML = 'Showing ' + state.visible.length + ' result' + (state.visible.length === 1 ? '' : 's');
+  var headerText = 'Showing ' + state.visible.length + ' result' + (state.visible.length === 1 ? '' : 's');
+  if (state.query) {
+    headerText += ' for <em style="color:var(--text)">' + esc(state.query) + '</em>';
+  }
+  $('rhead').innerHTML = headerText;
   $('cards').innerHTML = state.visible.map(renderCard).join('');
 
   var sparse = $('sparse');
