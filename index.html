@@ -484,6 +484,65 @@ function renderResults(state) {
   $('results').classList.add('show');
 }
 
+function swapCard(pmid, btn) {
+  var state = currentState;
+  if (!state) return;
+  /* Find index of card to replace */
+  var idx = -1;
+  for (var i = 0; i < state.visible.length; i++) {
+    if (state.visible[i].pmid === pmid) { idx = i; break; }
+  }
+  if (idx === -1) return;
+
+  /* Track exclusion so re-queries don't re-suggest it */
+  state.excludeIds.push(pmid);
+
+  /* Cache-first */
+  if (state.reserve.length > 0) {
+    var replacement = state.reserve.shift();
+    state.visible.splice(idx, 1, replacement);
+    renderResults(state);
+    return;
+  }
+
+  /* Reserve empty — re-query with cumulative excludeIds */
+  if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
+  searchWithCascade(state).then(function(pmids) {
+    /* Filter out PMIDs we're already showing */
+    var currentPmids = state.visible.map(function(a) { return a.pmid; });
+    pmids = pmids.filter(function(p) { return currentPmids.indexOf(p) === -1; });
+    if (pmids.length === 0) {
+      if (btn) { btn.textContent = 'No more matches'; btn.disabled = true; }
+      return;
+    }
+    /* Fetch metadata for just the new PMIDs */
+    return Promise.all([ ncbiFetchAbstracts(pmids), ncbiSummary(pmids) ]).then(function(both) {
+      var abstracts = both[0], summaries = both[1];
+      var newArticles = pmids.map(function(p) {
+        var s = summaries[p] || {};
+        var a = abstracts[p] || {};
+        return {
+          pmid: p,
+          title: s.title || '(Title unavailable)',
+          authors: s.authors || 'Unknown authors',
+          journal: s.journal || '',
+          year: s.year || '',
+          pmcId: s.pmcId || null,
+          finding: a.finding || null,
+          publicationTypes: a.publicationTypes || []
+        };
+      });
+      newArticles = rerankByEvidence(newArticles);
+      var replacement2 = newArticles.shift();
+      state.reserve = newArticles;  // any leftover seeds the new reserve
+      state.visible.splice(idx, 1, replacement2);
+      renderResults(state);
+    });
+  }).catch(function() {
+    if (btn) { btn.textContent = 'Search failed'; btn.disabled = true; }
+  });
+}
+
 /* ────────────────────────────────────────────────────────────
    INPUT WIRING
    ──────────────────────────────────────────────────────────── */
@@ -724,6 +783,9 @@ document.addEventListener('click', function(ev) {
     var notice = $('spell');
     var em = notice.querySelector('em');
     if (em) runSearch(em.textContent, currentState && currentState.counter, true);
+  } else if (action === 'swap') {
+    var pmid = t.getAttribute('data-pmid');
+    if (pmid) swapCard(pmid, t);
   }
 });
 
